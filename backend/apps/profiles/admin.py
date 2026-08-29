@@ -23,6 +23,7 @@ class StudentProfileAdmin(admin.ModelAdmin):
         "user__telegram_first_name",
         "user__telegram_last_name",
     )
+    list_filter = ("user__student_record__lyceum", "user__student_record__group_name")
     list_select_related = ("user", "user__student_record", "user__student_record__lyceum")
     filter_horizontal = ("interests",)
     readonly_fields = (

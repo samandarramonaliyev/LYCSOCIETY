@@ -1,6 +1,6 @@
 # LYC Society API Contract
 
-This is the API contract and implementation guide. Phase 2 implements the API foundation, health endpoint, Telegram session authentication, onboarding-state reads, and official-record claiming. All club, profile-editing, notification, moderation, and Telegram-group routes remain planned until their named phases.
+This is the API contract and implementation guide. Phase 4 adds same-lyceum clubs, moderation, memberships, and join requests. Telegram groups, meetings, announcements, notifications, and reports remain planned until their named phases.
 
 ## 1. Conventions
 
@@ -36,9 +36,21 @@ Do not return database exception text, roster data, Telegram tokens, raw chat ID
 
 The deployed route is `/api/v1/health/`. DRF currently uses session authentication, `IsAuthenticated` as the default permission, JSON rendering, page-number pagination (20 default / 100 maximum), and a custom error envelope. The health endpoint explicitly overrides the authenticated default.
 
-Official student data is not publicly serializable. There is no public roster list, public lyceum directory, profile-editing endpoint, or staff import endpoint. Authenticated onboarding users may read the minimal active-lyceum choice list at `/verification/lyceums/`.
+Official student data is not publicly serializable. Authenticated onboarding users may read the minimal active-lyceum choice list at `/verification/lyceums/`. Verified active students may read and update only their own profile through `/profile/`; clients cannot write roster-owned identity fields or choose a lyceum scope.
 
-## 3. Implemented: Authentication and onboarding
+## 3. Implemented: verified profiles and interests
+
+| Method | Route | Auth | Purpose |
+|---|---|---|---|
+| `GET` | `/profile/` | Verified active student | Return the current student's safe profile and roster-derived identity |
+| `PATCH` | `/profile/` | Verified active student | Update `about`, `hobbies`, an HTTPS `profile_photo_url`, and administrator-managed `interest_ids` |
+| `GET` | `/interests/` | Verified active student | List active interest tags; optional bounded `search` filters by name or slug |
+
+Profile writes reject verified fields (`first_name`, `last_name`, `group`, `lyceum`, and official-record references) with a structured validation error. Interest IDs are deduplicated, must refer to active administrator-managed tags, and are limited to ten per profile.
+
+The profile's lyceum is always derived from the active official student record. Future domain queries should use the shared `get_verified_lyceum(user)` and `scope_queryset_to_verified_lyceum(...)` helpers; request query/body lyceum values are never authorization context.
+
+## 4. Implemented: Authentication and onboarding
 
 | Method | Route | Auth | Purpose |
 |---|---|---|---|
@@ -56,7 +68,9 @@ Before `POST /auth/telegram/`, the same-origin Mini App calls `GET /auth/csrf/` 
 
 The own-account responses expose only safe information: account status, display metadata, verification state, own verified name/lyceum/group, and basic editable-profile data. They never return raw Telegram IDs, official-record IDs or keys, verification metadata, or data about another student.
 
-## 4. Planned: Discovery and clubs
+## 5. Implemented: clubs and discovery
+
+Implemented routes use trailing slashes: `GET/POST /clubs/`, `GET/PATCH /clubs/{club_id}/`, `GET /clubs/mine/`, `POST /clubs/{club_id}/resubmit/`, `POST /clubs/{club_id}/moderate/` for staff, and `GET /clubs/{club_id}/members/`. Discovery is limited to active clubs in the authenticated student's trusted lyceum.
 
 | Method | Route | Auth | Scope/permission |
 |---|---|---|---|
@@ -68,9 +82,11 @@ The own-account responses expose only safe information: account status, display 
 | `GET` | `/clubs/{club_id}/members` | Owner/member/admin | Same-lyceum authorized member list; minimize fields |
 | `POST` | `/clubs/{club_id}/reports` | Verified | Report the club with controlled reason |
 
-Normal discovery never returns `PENDING`, `REJECTED`, `SUSPENDED`, or `ARCHIVED` clubs. The owner may see their own non-active club; unrelated students receive not-found or forbidden behavior that does not disclose its existence.
+Normal discovery never returns `PENDING`, `REJECTED`, `PAUSED`, or `ARCHIVED` clubs. The owner may see their own non-active club through `/clubs/mine/`; unrelated students receive not-found behavior that does not disclose its existence.
 
-## 5. Planned: Join requests and memberships
+## 6. Implemented: join requests and memberships
+
+Join-request routes are `POST/GET /clubs/{club_id}/join-requests/`, `POST /join-requests/{request_id}/accept/`, `POST /join-requests/{request_id}/reject/`, `POST /join-requests/{request_id}/cancel/`, and `POST /clubs/{club_id}/leave/`. Owner membership counts toward the three-active-membership maximum.
 
 | Method | Route | Auth | Scope/permission |
 |---|---|---|---|
@@ -85,7 +101,7 @@ Normal discovery never returns `PENDING`, `REJECTED`, `SUSPENDED`, or `ARCHIVED`
 
 The API must not trust a club owner ID, requester ID, role, membership count, or lyceum supplied by the client.
 
-## 6. Planned: Meetings, announcements, and Telegram access
+## 7. Planned: Meetings, announcements, and Telegram access
 
 | Method | Route | Auth | Scope/permission |
 |---|---|---|---|
@@ -101,7 +117,7 @@ The API must not trust a club owner ID, requester ID, role, membership count, or
 
 Telegram group operations that require Bot API permissions are asynchronous/capability-dependent. An API response must expose a safe integration status, not imply success before the Bot API confirms it.
 
-## 7. Planned: Notifications and preferences
+## 8. Planned: Notifications and preferences
 
 | Method | Route | Auth | Purpose |
 |---|---|---|---|
@@ -113,7 +129,7 @@ Telegram group operations that require Bot API permissions are asynchronous/capa
 
 Notification creation is a domain side effect; recipients are derived from membership and account state. Clients cannot choose arbitrary recipients.
 
-## 8. Implemented staff foundation and planned staff boundary
+## 9. Implemented staff foundation and planned staff boundary
 
 The implemented Django Admin registers users, lyceums, official student records, profiles, and interests with search, filters, and read-only audit fields. It hides the verification-code hash and makes a persisted Telegram ID read-only after account creation.
 
@@ -131,7 +147,7 @@ Planned staff operations:
 
 Staff endpoints must scope by explicit authorized staff capability, record audit events, and avoid returning raw verification code hashes or Telegram invite links.
 
-## 9. Status codes and authorization behavior
+## 10. Status codes and authorization behavior
 
 - `200`/`201`: successful read/create/update.
 - `204`: successful action with no body.
@@ -146,7 +162,9 @@ Use stable machine-readable error codes so the Mini App can present a clear mess
 
 Phase 2 additionally uses `CSRF_FAILED`, `TELEGRAM_INIT_DATA_INVALID`, `TELEGRAM_INIT_DATA_EXPIRED`, `TELEGRAM_INIT_DATA_REPLAYED`, and `ACCOUNT_UNAVAILABLE` for authentication failures. Invalid Telegram credentials return `401` with `WWW-Authenticate: Telegram`; CSRF failures and unavailable accounts return `403`. Roster lookup failures deliberately collapse to `VERIFICATION_FAILED`; `ALREADY_VERIFIED` is returned only for the current user's own already-complete onboarding state. DRF returns `THROTTLED` for the configured authentication or verification rate limit.
 
-## 10. API test contract
+Phase 3 profile validation returns `400` for roster-owned field writes, invalid HTTPS photo references, unavailable interest IDs, and selections over the ten-interest limit. Profile and interest routes return `403` for anonymous, unverified, suspended, or inactive accounts.
+
+## 11. API test contract
 
 For every protected detail/action route, test:
 

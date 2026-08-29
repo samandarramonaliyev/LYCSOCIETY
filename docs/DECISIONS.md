@@ -46,7 +46,7 @@ This is the decision log for requirements that need an explicit interpretation. 
 
 ### D-007 — Owner membership counts toward the three-club limit
 
-**Status:** Provisional; product owner confirmation required before Phase 4  
+**Status:** Accepted for Phase 4
 **Decision:** Creating a club creates an active owner membership, and that row counts toward the maximum of three active memberships. Club creation fails if the student is already at the limit.  
 **Reason:** It keeps ownership and membership consistent and prevents a student from bypassing the cap by creating clubs.
 
@@ -88,7 +88,7 @@ This is the decision log for requirements that need an explicit interpretation. 
 
 ### D-014 — No owner self-leave or transfer in MVP
 
-**Status:** Provisional; product owner confirmation required before Phase 4  
+**Status:** Accepted for Phase 4
 **Decision:** The owner cannot leave their own club. Administrator-only transfer may be added later.  
 **Reason:** The requirement does not define orphaned clubs or transfer rules; silently supporting them would create moderation and ownership gaps.
 
@@ -141,6 +141,24 @@ This is the decision log for requirements that need an explicit interpretation. 
 **Status:** Accepted for Phase 2
 **Decision:** Before posting signed Telegram `initData`, the same-origin Mini App obtains a CSRF cookie/token from `GET /api/v1/auth/csrf/` and sends it in `X-CSRFToken` to the session-creating login endpoint. The login endpoint applies Django CSRF validation even though it otherwise allows anonymous callers.
 **Reason:** A signed Telegram payload authenticates the caller but does not by itself prevent a cross-site login request from binding a victim browser to an attacker's account. The bootstrap keeps the documented Django session model and protects against login CSRF without introducing bearer tokens.
+
+### D-023 — Phase 3 profile fields, photo references, and interests
+
+**Status:** Accepted for Phase 3
+**Decision:** Self-profile writes accept only plain-text `about` (maximum 1,000 characters), plain-text `hobbies` (maximum 500 characters), an optional HTTPS `profile_photo_url`, and IDs of administrator-managed active interests. At most ten unique interests may be selected. Deactivated interests cannot be newly selected and are omitted from selectable/profile responses; duplicate submitted IDs collapse safely. The server does not fetch or proxy external photo URLs.
+**Reason:** This keeps the profile boundary small and auditable while preserving the existing model and avoiding an unplanned media pipeline or uncontrolled tag creation.
+
+### D-024 — Trusted lyceum scope helper
+
+**Status:** Accepted for Phase 3
+**Decision:** Future lyceum-scoped queries use `get_verified_lyceum(user)` or `scope_queryset_to_verified_lyceum(...)`. These helpers derive the tenant only from the user's active official student record and active lyceum; client-supplied IDs and query parameters are never authorization context.
+**Reason:** A shared service boundary prevents future object-level authorization from accidentally using a request-selected lyceum and provides a single reusable foundation for Phase 4 discovery.
+
+### D-025 — Phase 4 club, membership, and join-request rules
+
+**Status:** Accepted for Phase 4
+**Decision:** Each verified student may own exactly one club, regardless of club status; rejected clubs are edited and resubmitted in place. New clubs are `PENDING`, owner membership is created atomically and counts toward a maximum of three active memberships, and only active same-lyceum clubs are discoverable. Owners may keep active clubs active while editing. Members may leave; owners must archive instead. Pending join requests are unique per club/user and are accepted transactionally under user/club locks.
+**Reason:** These rules provide a small auditable lifecycle, prevent duplicate ownership and membership-limit races, and keep tenant scope server-derived.
 
 ## Open risks and ambiguities
 

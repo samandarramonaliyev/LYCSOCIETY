@@ -61,7 +61,7 @@ def serialize_account_state(user: User) -> dict[str, object]:
     if profile is not None:
         interests = [
             {"slug": interest.slug, "name": interest.name}
-            for interest in profile.interests.all()
+            for interest in profile.interests.filter(is_active=True)
         ]
 
     return {

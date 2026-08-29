@@ -1,6 +1,6 @@
 # LYC Society Development Plan
 
-Phases 0 and 1 are complete. **Phase 2 is the active implementation phase.** Its code may be closed only after Django checks, migration consistency checks, and PostgreSQL-backed tests pass in the configured local environment.
+Phases 0, 1, 2, and 3 are complete. **Phase 4 is the active implementation phase.** Its code may be closed only after Django checks, migration consistency checks, and PostgreSQL-backed tests pass in the configured local environment.
 
 ## Phase 0 — Documentation baseline (complete for this task)
 
@@ -50,7 +50,7 @@ Exit criteria:
 - Unverified users cannot reach protected product data.
 - The documented limitation of roster-detail matching is accepted explicitly; a stronger administration-controlled secret remains recommended before wider deployment.
 
-## Phase 3 — Profiles + interests + lyceum isolation
+## Phase 3 — Profiles + interests + lyceum isolation (complete)
 
 Deliverables:
 
@@ -59,13 +59,15 @@ Deliverables:
 - Same-lyceum scoped query helpers and object permissions.
 - Safe student-facing profile serializers.
 
+The Phase 3 profile API is self-only. It permits plain-text `about` and `hobbies`, an optional HTTPS photo reference, and up to ten active administrator-managed interest tags. Verified identity remains derived from the official record. Shared lyceum-scope helpers derive tenant context from that record rather than request parameters.
+
 Exit criteria:
 
 - Cross-lyceum list and detail IDOR tests pass.
 - Client-supplied scope/identity fields are ignored or rejected.
 - Sensitive roster fields are absent from ordinary responses.
 
-## Phase 4 — Clubs + approval + join requests + memberships
+## Phase 4 — Clubs + approval + join requests + memberships (current)
 
 Deliverables:
 

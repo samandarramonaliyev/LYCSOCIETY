@@ -1,6 +1,6 @@
 # LYC Society Architecture
 
-**Implementation status:** Phase 2 extends the Django/PostgreSQL foundation in the existing `common`, `identity`, `lyceums`, and `profiles` modules. It adds Telegram Mini App session authentication, official-record claiming, and roster import only; club, notification, moderation, and Telegram group modules remain future boundaries and have not been scaffolded.
+**Implementation status:** Phase 4 extends the Django/PostgreSQL foundation with the `clubs` domain module. It adds scoped clubs, moderation, memberships, and join requests. Telegram groups, meetings, announcements, notifications, and reports remain future boundaries.
 
 ## 1. Recommended architecture
 
@@ -39,7 +39,7 @@ The React application is a client of the API, not a trust boundary. Bot updates 
 
 ## 3. Current and planned repository structure
 
-The repository now contains the Phase 2 backend foundation. The structure below remains the complete target layout; only the shared, identity, lyceum, and profile modules currently exist.
+The repository now contains the Phase 4 backend foundation. The structure below remains the complete target layout; shared, identity, lyceum, profile, and clubs modules currently exist.
 
 ```text
 backend/
@@ -54,7 +54,7 @@ backend/
     identity/            # users, sessions, Telegram authentication
     lyceums/             # lyceums and official student records
     profiles/            # editable profile data and interest tags
-    clubs/               # clubs, memberships, join requests, meetings
+    clubs/               # clubs, memberships, and join requests
     notifications/       # notifications, preferences, outbox delivery
     moderation/          # reports, review actions, suspensions
     telegram_integration/# bot adapters, handlers, group linking
@@ -99,13 +99,15 @@ For bot callbacks and commands, the Telegram adapter maps the Telegram actor to 
 
 Own validated Telegram identity binding, secure server-side sessions, user suspension, official roster imports, exact roster-match verification, atomic record claims, verification throttling, and the derived verified-student/lyceum context.
 
-### Implemented in Phases 1–2: Profiles
+### Implemented in Phases 1–3: Profiles
 
-Own editable profile fields and structured interest tags. Verified fields are read from the official student record and cannot be updated by the profile API.
+Own editable profile fields and structured interest tags. Verified fields are read from the official student record and cannot be updated by the profile API. The profile serializer accepts only plain-text about/hobbies, an HTTPS photo reference, and active interest IDs (maximum ten). The profile API is self-only and uses `IsVerifiedActiveStudent`.
 
-### Planned: Clubs
+Lyceum isolation is a shared service boundary in `lyceums.services.scoping`. `get_verified_lyceum(user)` derives the active tenant from the user's official record; `scope_queryset_to_verified_lyceum(...)` applies that value to future querysets. Neither helper accepts a client-supplied lyceum identifier.
 
-Own club lifecycle, ownership, memberships, join requests, meetings, announcements, and club-scoped authorization.
+### Implemented in Phase 4: Clubs
+
+Own club lifecycle, ownership, memberships, join requests, and club-scoped authorization. Club creation and join acceptance lock the relevant user rows; discovery and detail querysets derive lyceum from the verified student record.
 
 ### Planned: Notifications
 
@@ -139,9 +141,9 @@ Use code review and tests to enforce the rule that any new private entity must e
 
 ## 8. Current API foundation
 
-DRF is configured with session authentication, an authenticated-by-default permission policy, JSON rendering, page-number pagination (20 default / 100 maximum), throttling, and a non-leaking error envelope. The implemented public/session endpoints are the unauthenticated database health check at `GET /api/v1/health/`, CSRF bootstrap at `GET /api/v1/auth/csrf/`, CSRF-protected `POST /api/v1/auth/telegram/`, `POST /api/v1/auth/logout/`, `GET /api/v1/auth/me/`, `GET /api/v1/verification/lyceums/`, `GET /api/v1/verification/status/`, and `POST /api/v1/verification/claim/`.
+DRF is configured with session authentication, an authenticated-by-default permission policy, JSON rendering, page-number pagination (20 default / 100 maximum), throttling, and a non-leaking error envelope. The implemented API also includes verified profile routes, active interest selection, scoped club discovery/creation/detail, owner moderation, memberships, and join-request actions. All club routes derive lyceum from the verified student record.
 
-`IsVerifiedActiveStudent` is the reusable permission for future student-facing routes. It requires an authenticated, active account with an active claimed official record and an active lyceum. Club and other student-facing product endpoints remain out of scope until later phases.
+`IsVerifiedActiveStudent` is the reusable permission for student-facing routes. It requires an authenticated, active account with an active claimed official record and an active lyceum.
 
 ## 9. Side effects and consistency
 

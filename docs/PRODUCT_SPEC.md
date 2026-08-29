@@ -105,11 +105,11 @@ Club owners create upcoming meetings and announcements. The notification service
 `PENDING → ACTIVE`  
 `PENDING → REJECTED`  
 `REJECTED → PENDING` (resubmission)  
-`ACTIVE → SUSPENDED`  
+`ACTIVE → PAUSED`
 `ACTIVE → ARCHIVED`  
-`SUSPENDED → ACTIVE` or `ARCHIVED`
+`PAUSED → ACTIVE` or `ARCHIVED`
 
-Only administrators may approve, reject, suspend, or archive. An owner may edit a pending/rejected club and resubmit; editing active content should be limited to owner-editable fields and preserve moderation history.
+Only administrators may approve, reject, pause, or archive. An owner may edit a pending/rejected club and resubmit; editing active content should be limited to owner-editable fields and preserve moderation history.
 
 ### Join request
 

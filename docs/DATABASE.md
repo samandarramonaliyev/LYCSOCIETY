@@ -1,8 +1,8 @@
-# LYC Society Database Design
+# LYC Society Database Design (Phases 1-3)
 
 PostgreSQL is the source of truth. The examples below describe logical tables and constraints; Django migrations will define the physical schema.
 
-## 1. Phases 1–2 implementation
+## 1. Phases 1–4 implementation
 
 The following schema is implemented by initial migrations today:
 
@@ -66,7 +66,7 @@ Use a custom Django user model from the first migration.
 | `is_staff` / role membership | For Django admin access; use Django permissions/groups |
 | `last_seen_at`, `created_at`, `updated_at` | Operational timestamps |
 
-`about`, hobbies, and profile photo live in `student_profiles`. Do not duplicate editable copies of verified first name, last name, group, or lyceum as user-controlled fields.
+`about`, hobbies, and profile photo live in `student_profiles`. Do not duplicate editable copies of verified first name, last name, group, or lyceum as user-controlled fields. Phase 3 limits profile interest selections to ten active administrator-managed tags; the existing many-to-many join and database uniqueness prevent duplicate pairs. `profile_photo_url` is an optional HTTPS URL/reference and the server does not fetch or proxy it.
 
 ### `student_records`
 
@@ -115,7 +115,7 @@ Verified lyceum, group, and official identity are derived read-only properties t
 
 Join tables `user_interest_tags` and `club_interest_tags` use unique `(owner, tag)` pairs. Users and clubs may have configurable small maximum counts, e.g. 10, enforced by service validation.
 
-### Planned future entities (not migrated in Phase 1)
+### Phase 4 entities
 
 ### `clubs`
 
@@ -128,7 +128,7 @@ Join tables `user_interest_tags` and `club_interest_tags` use unique `(owner, ta
 | `slug` | Optional URL-friendly value, unique per lyceum |
 | `short_description`, `full_description` | Validated/sanitized content |
 | `category` | Controlled category choice or admin-managed taxonomy |
-| `status` | `PENDING`, `ACTIVE`, `REJECTED`, `SUSPENDED`, `ARCHIVED` |
+| `status` | `PENDING`, `ACTIVE`, `REJECTED`, `PAUSED`, `ARCHIVED` |
 | `rejection_reason` | Required when status is `REJECTED` |
 | `reviewed_by`, `reviewed_at` | Nullable administrator decision metadata |
 | `created_at`, `updated_at` | UTC timestamps |
@@ -143,7 +143,7 @@ Recommended category values: Technology, Science, Business, Sports, Arts, Langua
 | `club_id`, `user_id` | Required FKs |
 | `role` | `OWNER`, `MEMBER`, future `MODERATOR` |
 | `status` | `ACTIVE` or `REMOVED` |
-| `joined_at`, `removed_at` | Membership history |
+| `joined_at`, `left_at` | Membership history |
 
 The owner has an active membership row. This makes membership counting and future roles consistent. An active membership is unique per `(club_id, user_id)`; removal preserves history and does not create a second active row.
 
@@ -152,7 +152,7 @@ The owner has an active membership row. This makes membership counting and futur
 | Field | Notes |
 |---|---|
 | `id` | UUID primary key |
-| `club_id`, `requester_id` | Required FKs |
+| `club_id`, `user_id` | Required FKs |
 | `status` | `PENDING`, `ACCEPTED`, `REJECTED`, `CANCELLED` |
 | `message` | Optional length-limited request message if product retains it |
 | `decision_reason` | Optional for acceptance; expected for rejection when owner supplies one |

@@ -2,9 +2,9 @@
 
 Security is a product requirement, not a frontend feature. The backend and database enforce all identity, lyceum, role, and state rules.
 
-## Phases 1–2 implementation status
+## Phases 1–4 implementation status
 
-The current implementation has environment-only secrets, PostgreSQL-only settings, a unique positive Telegram numeric identity, separate sensitive roster records, separate editable profiles, database constraints, staff-only Django Admin, and no public roster/profile API. Phase 2 adds server-side Telegram `initData` validation, Telegram-derived Django sessions, exact roster-match claims, replay-risk reduction, verification throttling, and a reusable verified-active-student permission. Club and other product-object authorization remain later-phase work.
+The current implementation has environment-only secrets, PostgreSQL-only settings, a unique positive Telegram numeric identity, separate sensitive roster records, separate editable profiles, database constraints, staff-only Django Admin, and no public roster API. Phase 2 adds Telegram validation and verification; Phase 3 adds controlled profiles and trusted lyceum scoping; Phase 4 adds scoped clubs, transactional membership limits, join-request state transitions, and staff moderation. Later product integrations remain out of scope.
 
 ## 1. Trust boundaries
 
@@ -61,7 +61,9 @@ Set HTTPS, HSTS, a restrictive Content Security Policy, frame/embedding policy c
 - Make claiming atomic: lock the user and candidate record(s), re-check state, then write the one-to-one binding and timestamp together.
 - Do not reveal whether a guessed name/group exists. Return coarse verification outcomes.
 - Prevent one Telegram identity from binding multiple records and one record from binding multiple accounts.
-- Do not let profile PATCH or any public API mutate verified fields.
+- Do not let profile PATCH or any public API mutate verified fields. The Phase 3 serializer rejects roster-owned aliases instead of mass-assigning them.
+- Profile and interest routes require an active verified account. Their lyceum context is loaded from the active official record; client-supplied lyceum IDs are not authorization input.
+- Profile photos are stored only as validated HTTPS references. The backend does not fetch arbitrary URLs or implement a media proxy in this phase.
 - Keep verification attempts and staff changes auditable without recording raw authentication payloads or future verification secrets.
 
 This roster-match method is not strong proof of ownership: anyone who knows another student's lyceum, name, and group may attempt a claim. A unique match is necessary but not sufficient proof. It is retained only for the explicit Phase 2 pilot scope, with generic errors, throttling, and administrator-only reset; replace it before wider deployment with an administrator-issued, single-use verification code or another administration-controlled secret. Do not implement a freely enumerable roster lookup.
@@ -86,6 +88,8 @@ Cross-lyceum denial applies to clubs, members, requests, meetings, announcements
 Enforce the following in both service logic and database constraints where possible:
 
 - one club per owner;
+- owner membership is created with the club and counts toward the three active-membership limit;
+- one active membership per `(club, user)` and one owner membership per club;
 - one active verified binding per Telegram identity and roster record;
 - one pending join request per user/club;
 - no owner self-join;
@@ -103,6 +107,7 @@ Lock the user row for club creation, membership acceptance, and other operations
 - Sanitize or escape announcement and club content; do not render arbitrary HTML.
 - Validate uploaded images by MIME/content, size, dimensions, and safe storage name. Store media outside executable paths.
 - Rate-limit Telegram authentication and student verification now; later phases must also rate-limit reports, profile updates, club creation, join requests, Telegram actions, and notification-triggering actions.
+- Club and join-request mutations reject client-supplied owner, lyceum, status, role, membership counts, and moderation fields.
 - Use generic error responses that do not disclose roster membership, object existence, or staff-only state.
 - Redact authorization headers, cookies, init data, verification codes, invite URLs, and personal data from logs.
 

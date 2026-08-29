@@ -29,6 +29,7 @@ INSTALLED_APPS = [
     "apps.identity.apps.IdentityConfig",
     "apps.lyceums.apps.LyceumsConfig",
     "apps.profiles.apps.ProfilesConfig",
+    "apps.clubs.apps.ClubsConfig",
 ]
 
 MIDDLEWARE = [
