@@ -152,3 +152,6 @@ An owner membership is created with the club. Owners cannot leave their own club
 The visual direction is academic, literary, warm, and restrained: parchment/cream, ink brown, muted burgundy, forest green, muted gold, serif editorial typography, clean sans-serif support text, thin borders, whitespace, and subtle paper/book details. Avoid neon, cyberpunk, glassmorphism, excessive gradients/3D, and childish school-app styling.
 
 The visual direction does not override security, accessibility, Telegram safe-area behavior, or readable contrast.
+Phase 5A supports owner-linked Telegram groups for active clubs and in-app
+notifications for club and join-request lifecycle events. Group creation and
+later meeting/announcement features are out of scope.

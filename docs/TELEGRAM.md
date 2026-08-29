@@ -100,3 +100,11 @@ Meeting reminders are a scheduled outbox job and must be idempotent. A reminder 
 - Treat chat IDs and invite links as sensitive integration data.
 - Use link rotation/disconnection when a group is compromised or a club is archived.
 - Do not promise Telegram actions that depend on permissions the bot does not have.
+## Phase 5A group integration
+
+The bot does not create groups. A club owner starts a short-lived link challenge,
+adds the bot as an administrator in an existing group, and completes the challenge
+through the bot. The server stores a one-time token hash and accepts confirmation
+only after the bot has verified the chat and its `can_invite_users` permission.
+Telegram chat IDs are unique per linked club. Member invite links are one-use and
+expire after ten minutes; they are never stored as permanent public links.

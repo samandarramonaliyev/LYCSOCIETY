@@ -166,3 +166,6 @@ Use environment/secret-manager configuration for database credentials, Django se
 ## 11. Explicit non-goals
 
 Do not add WebSockets, Redis, Celery, Elasticsearch, a separate identity provider, a recommendation service, or a second frontend until measured requirements justify them and the decision is recorded.
+Phase 5A introduces separate `telegram_integration` and `notifications` modules.
+Core club services create durable notifications; a management command delivers them
+through the focused Telegram client, keeping external failures outside transactions.

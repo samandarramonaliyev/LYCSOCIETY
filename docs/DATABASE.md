@@ -266,3 +266,9 @@ The maximum-three-memberships rule spans rows and cannot be represented by a nor
 Imports are administrator-only, idempotent by the official stable key where available, and produce a reconciliation report. A record becoming inactive prevents new verification and new actions but does not silently rewrite historical club or membership records. If the administration changes a student’s group/name, future reads use the current official record; the audit trail records the change.
 
 Do not import or store fields not needed for verification. In particular, age/date of birth is not required by this product.
+Phase 5A adds `ClubTelegramGroup`, one-time `TelegramLinkChallenge`, `Notification`,
+and `NotificationPreference`. Group chat IDs are unique and notification dedupe keys
+are unique when supplied.
+Phase 5B adds Meeting, MeetingRSVP, and Announcement entities. Meetings belong to
+active clubs, are visible only to active members, and use scheduled/cancelled
+states. Reminder notifications are deduplicated per meeting/member.

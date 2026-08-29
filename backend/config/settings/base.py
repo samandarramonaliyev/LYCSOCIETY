@@ -30,6 +30,9 @@ INSTALLED_APPS = [
     "apps.lyceums.apps.LyceumsConfig",
     "apps.profiles.apps.ProfilesConfig",
     "apps.clubs.apps.ClubsConfig",
+    "apps.notifications.apps.NotificationsConfig",
+    "apps.telegram_integration.apps.TelegramIntegrationConfig",
+    "apps.meetings.apps.MeetingsConfig",
 ]
 
 MIDDLEWARE = [

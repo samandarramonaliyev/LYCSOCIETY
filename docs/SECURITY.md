@@ -134,3 +134,9 @@ Lock the user row for club creation, membership acceptance, and other operations
 Phase 2 includes automated tests for forged hash, stale `auth_date`, replayed signed init data, duplicate binding, exact-match ambiguity, claimed-record non-disclosure, frontend-supplied identity/scope tampering, suspension, throttling, CSV validation/rollback, and sensitive-field serialization. Later phases must add the documented IDOR, role, membership, Telegram-access, outbox, and CSRF coverage as those features are implemented.
 
 Perform a manual pre-production review of deployment secrets, CORS/CSP, cookie settings, admin exposure, database backups, Telegram webhook validation, and bot permissions.
+Phase 5A adds one-time Telegram group-link challenges, owner-only management,
+trusted lyceum/member checks for invites, and recipient-scoped notifications.
+Telegram delivery is best effort and cannot roll back club transactions.
+Phase 5B enforces owner-only meeting/announcement mutations, active-membership
+visibility, verified lyceum scoping, preference-aware fan-out, and deduplicated
+reminders. Telegram failures remain outside domain transactions.

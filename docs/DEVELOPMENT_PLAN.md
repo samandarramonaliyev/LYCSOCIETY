@@ -153,3 +153,6 @@ Exit criteria:
 - Keep migrations backward-compatible with the deployed release strategy.
 - Do not add a dependency without a documented reason, maintenance plan, and security review.
 - Do not expand MVP scope to solve a future feature.
+Phase 5A adds Telegram group linking/invite integration and the notification
+outbox/delivery foundation. Meetings and announcements remain Phase 5B.
+Phase 5B adds meetings, announcements, reminders, and preference enforcement.

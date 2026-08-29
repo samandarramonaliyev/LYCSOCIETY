@@ -10,6 +10,8 @@ from rest_framework.exceptions import APIException, NotFound, PermissionDenied
 from apps.identity.models import User
 from apps.lyceums.services.scoping import get_verified_lyceum
 from apps.profiles.models import Interest
+from apps.notifications.models import NotificationType
+from apps.notifications.services import create_notification
 
 from .models import (
     Club,
@@ -184,6 +186,10 @@ def moderate_club(*, club_id, action: str, reason: str = "") -> Club:
     else:
         raise ModerationInvalid("Unsupported club moderation action.")
     club.save(update_fields=("status", "rejection_reason", "updated_at"))
+    if action == "approve":
+        create_notification(recipient=club.owner, type=NotificationType.CLUB_APPROVED, title="Club approved", body=f"Your club '{club.name}' was approved.", dedupe_key=f"club:{club.pk}:approved")
+    elif action == "reject":
+        create_notification(recipient=club.owner, type=NotificationType.CLUB_REJECTED, title="Club rejected", body=club.rejection_reason, dedupe_key=f"club:{club.pk}:rejected:{club.updated_at.isoformat()}")
     return club
 
 
@@ -222,7 +228,9 @@ def create_join_request(*, club_id, user: User) -> JoinRequest:
         raise JoinRequestConflict
     if _active_membership_count(locked_user) >= MAX_ACTIVE_MEMBERSHIPS:
         raise MembershipLimitReached
-    return JoinRequest.objects.create(club=club, user=locked_user, status=JoinRequestStatus.PENDING)
+    request = JoinRequest.objects.create(club=club, user=locked_user, status=JoinRequestStatus.PENDING)
+    create_notification(recipient=club.owner, type=NotificationType.JOIN_REQUEST_CREATED, title="New join request", body=f"A student requested to join {club.name}.", dedupe_key=f"join-request:{request.pk}:created")
+    return request
 
 
 @transaction.atomic
@@ -261,6 +269,7 @@ def accept_join_request(*, request_id, owner: User) -> ClubMembership:
     )
     join_request.status = JoinRequestStatus.ACCEPTED
     join_request.save(update_fields=("status", "updated_at"))
+    create_notification(recipient=locked_user, type=NotificationType.JOIN_REQUEST_ACCEPTED, title="Join request accepted", body=f"Your request to join {club.name} was accepted.", dedupe_key=f"join-request:{join_request.pk}:accepted")
     return membership
 
 
@@ -278,6 +287,7 @@ def reject_join_request(*, request_id, owner: User, reason: str = "") -> JoinReq
     join_request.status = JoinRequestStatus.REJECTED
     join_request.rejection_reason = reason.strip()
     join_request.save(update_fields=("status", "rejection_reason", "updated_at"))
+    create_notification(recipient=join_request.user, type=NotificationType.JOIN_REQUEST_REJECTED, title="Join request rejected", body=join_request.rejection_reason or f"Your request to join {join_request.club.name} was rejected.", dedupe_key=f"join-request:{join_request.pk}:rejected")
     return join_request
 
 

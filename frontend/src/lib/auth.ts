@@ -1,0 +1,2 @@
+import {api} from "./api/client"; import {initializeTelegram} from "./telegram"; import type {AuthState,CurrentUser} from "../types/api";
+export async function bootstrapAuth():Promise<{state:AuthState;user?:CurrentUser}>{ const app=initializeTelegram(); if(!app) return {state:"TELEGRAM_UNAVAILABLE"}; try{ await api.csrf(); await api.authenticate(app.initData); const user=await api.me(); return {state:user.verification_status==="VERIFIED"?"VERIFIED":user.account_status==="SUSPENDED"?"SUSPENDED":"UNVERIFIED",user}; }catch{ return {state:"ERROR"}; } }

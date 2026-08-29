@@ -1,0 +1,2 @@
+import {createContext,useContext,useEffect,useState,ReactNode} from "react"; import {bootstrapAuth} from "../lib/auth"; import type {AuthState,CurrentUser} from "../types/api";
+const C=createContext<{state:AuthState;user?:CurrentUser}>({state:"INITIALIZING"}); export function AuthProvider({children}:{children:ReactNode}){const [value,setValue]=useState<{state:AuthState;user?:CurrentUser}>({state:"INITIALIZING"}); useEffect(()=>{bootstrapAuth().then(setValue)},[]); return <C.Provider value={value}>{children}</C.Provider>} export const useAuth=()=>useContext(C);

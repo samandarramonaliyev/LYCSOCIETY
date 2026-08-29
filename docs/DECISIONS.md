@@ -180,3 +180,12 @@ This is the decision log for requirements that need an explicit interpretation. 
 ## Decision maintenance rule
 
 When implementation reveals a new ambiguity, record the requirement, risk, recommendation, and affected documents here. A code change that relies on a new product decision is not complete until the decision is documented.
+### D-026 — Phase 5A Telegram groups and notifications
+
+Groups are owner-linked through a short-lived bot-confirmed challenge; the bot does
+not create groups. Invite links are limited-use/short-lived. Notifications are an
+outbox-like database record delivered separately with bounded retries.
+### D-027 — Phase 5B scheduling
+
+Meetings use scheduled/cancelled states and one-hour, deduplicated reminder
+notifications via a management command. RSVP is intentionally minimal.

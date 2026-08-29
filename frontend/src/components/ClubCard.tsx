@@ -1,0 +1,2 @@
+import type {ClubSummary} from "../types/api"; import {Card} from "./ui";
+export function ClubCard({club}:{club:ClubSummary}){return <Card><div className="text-xs font-bold uppercase tracking-widest text-burgundy">{club.category}</div><h3 className="mt-2 font-serif text-2xl">{club.name}</h3><p className="mt-2 text-sm text-[var(--muted)]">{club.short_description}</p><div className="mt-4 text-xs text-[var(--muted)]">{club.member_count} members</div></Card>}

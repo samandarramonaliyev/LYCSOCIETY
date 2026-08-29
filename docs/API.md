@@ -101,7 +101,7 @@ Join-request routes are `POST/GET /clubs/{club_id}/join-requests/`, `POST /join-
 
 The API must not trust a club owner ID, requester ID, role, membership count, or lyceum supplied by the client.
 
-## 7. Planned: Meetings, announcements, and Telegram access
+## 7. Implemented: Meetings and announcements
 
 | Method | Route | Auth | Scope/permission |
 |---|---|---|---|
@@ -117,7 +117,7 @@ The API must not trust a club owner ID, requester ID, role, membership count, or
 
 Telegram group operations that require Bot API permissions are asynchronous/capability-dependent. An API response must expose a safe integration status, not imply success before the Bot API confirms it.
 
-## 8. Planned: Notifications and preferences
+## 8. Implemented: Notifications and preferences
 
 | Method | Route | Auth | Purpose |
 |---|---|---|---|
@@ -176,3 +176,14 @@ For every protected detail/action route, test:
 - stale/current status behavior;
 - concurrent duplicate requests where relevant;
 - response does not leak forbidden fields.
+### Phase 5A
+
+- `POST /api/v1/clubs/{id}/telegram/link/start/` — owner-only short-lived link challenge.
+- `GET`/`DELETE /api/v1/clubs/{id}/telegram/` — owner group status/unlink.
+- `POST /api/v1/clubs/{id}/telegram/invite/` — active members receive a one-use managed invite.
+- `GET /api/v1/notifications/` and `POST /api/v1/notifications/{id}/read/` — recipient-only notifications.
+### Phase 5B
+
+Meetings: `GET/POST /api/v1/clubs/{id}/meetings/`, `GET/POST /api/v1/meetings/{id}/`.
+Announcements: `GET/POST /api/v1/clubs/{id}/announcements/`.
+Preferences: `GET/PATCH /api/v1/notification-preferences/`.
