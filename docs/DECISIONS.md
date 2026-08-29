@@ -6,9 +6,9 @@ This is the decision log for requirements that need an explicit interpretation. 
 
 ### D-001 — Documentation before implementation
 
-**Status:** Accepted  
-**Decision:** The current task creates only the specification and architecture baseline.  
-**Reason:** The repository is empty and the product has several security- and workflow-sensitive ambiguities. Feature code begins only after the next instruction and the requested phase.
+**Status:** Superseded by Phase 1
+**Decision:** The initial task created only the specification and architecture baseline. Phase 1 now implements only the approved backend foundation.
+**Reason:** Documentation remains the prerequisite for code changes; Phase 2+ behavior remains out of scope until requested.
 
 ### D-002 — Modular monolith
 
@@ -95,6 +95,24 @@ This is the decision log for requirements that need an explicit interpretation. 
 **Status:** Accepted baseline; confirm with administration/privacy review  
 **Decision:** Public student-facing profile data is display name, photo, about, and interests. Group is shown to the club owner for a join request and to authorized staff, not as a general directory field.  
 **Reason:** Group is useful for owner review but broader exposure is unnecessary for discovery.
+
+### D-016 — Implement only foundational domain apps in Phase 1
+
+**Status:** Accepted
+**Decision:** Implement `common`, `identity`, `lyceums`, and `profiles` now. Do not create placeholder `clubs`, `notifications`, `moderation`, or Telegram apps.
+**Reason:** Placeholder domain code would imply behavior that Phase 1 is explicitly forbidden to implement. The documented module boundaries remain the contract for later phases.
+
+### D-017 — Account, roster, and profile relationship
+
+**Status:** Accepted
+**Decision:** A required unique positive Telegram user ID identifies each `User`; `StudentRecord.verified_user` is the nullable one-to-one official binding; `StudentProfile` is a separate one-to-one editable profile. Verified lyceum and group are derived from the record rather than copied into the profile.
+**Reason:** This prevents mass assignment of verified identity data and separates sensitive roster data from user-editable data. An optional normalized external student key is unique only within a lyceum; names and groups are not identities.
+
+### D-018 — PostgreSQL-only configuration without local fallback
+
+**Status:** Accepted
+**Decision:** Settings require PostgreSQL environment variables and have no SQLite fallback, including tests.
+**Reason:** PostgreSQL constraints and behavior are the production contract. The current workspace has no Python or PostgreSQL tooling, so runtime verification is recorded as pending rather than substituted with SQLite.
 
 ## Open risks and ambiguities
 

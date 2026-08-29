@@ -2,7 +2,36 @@
 
 PostgreSQL is the source of truth. The examples below describe logical tables and constraints; Django migrations will define the physical schema.
 
-## 1. Identifier and timestamp conventions
+## 1. Phase 1 implementation
+
+The following schema is implemented by initial migrations today:
+
+- `identity.User` has a UUID primary key, required unique positive `telegram_user_id`, optional Telegram display metadata, `ACTIVE`/`SUSPENDED`/`DEACTIVATED` account status, staff permissions, and timestamps. `is_verified` is a read-only property derived from an active linked official record rather than a duplicate database flag.
+- `lyceums.Lyceum` has a UUID primary key, case-insensitively unique normalized code, name, optional city, active/inactive status, and timestamps.
+- `lyceums.StudentRecord` is separate sensitive roster data. It owns official first/last name, group, lyceum, optional normalized external student key, normalized name fields, active/inactive state, future verification metadata, a nullable one-to-one `verified_user`, and timestamps.
+- `profiles.StudentProfile` is a separate one-to-one editable profile with `about`, `hobbies`, optional profile-photo URL, interests, and timestamps. It has no writable lyceum, group, or official-identity column.
+- `profiles.Interest` is a reusable staff-managed vocabulary with case-insensitively unique name and slug. The automatic many-to-many join table prevents duplicate profile-interest pairs.
+
+The profile creation signal creates one profile for every normally-created user. `StudentRecord.verified_user` uses `PROTECT`, while a profile uses `CASCADE` because it contains only application-editable data. The official record uses an optional normalized external key when supplied by the administration; name and group are deliberately not identity constraints.
+
+Implemented database constraints and indexes:
+
+- unique positive Telegram user ID;
+- case-insensitive unique lyceum code;
+- unique supplied external student key within a lyceum;
+- one official record per user and one user per official record;
+- `verified_user` and `verified_at` must be both null or both populated;
+- non-negative verification attempts;
+- case-insensitive unique interest names/slugs; and
+- a scoped roster index on `(lyceum, status, group_name)`.
+
+PostgreSQL is mandatory. The settings have no SQLite fallback, including for tests.
+
+## 2. Target data-model roadmap
+
+The remaining sections retain the approved full-MVP schema for later phases. They are not a declaration that every table currently exists; the Phase 1 implementation section above takes precedence for the current database.
+
+### Identifier and timestamp conventions
 
 - Use UUID primary keys for application objects exposed through URLs.
 - Use `bigint` for Telegram user and chat IDs; they are opaque identifiers, not public profile data.
@@ -10,7 +39,7 @@ PostgreSQL is the source of truth. The examples below describe logical tables an
 - Use explicit status/role choices, with application-level transition checks and database checks where possible.
 - Keep historical rows for moderation and decisions. Prefer `ARCHIVED`, `REMOVED`, or `INACTIVE` states over destructive deletion.
 
-## 2. Core entities
+### Core entities
 
 ### `lyceums`
 
@@ -29,17 +58,14 @@ Use a custom Django user model from the first migration.
 | Field | Notes |
 |---|---|
 | `id` | UUID primary key |
-| `telegram_user_id` | Required, unique, never editable by the user |
-| `telegram_username` | Optional current display metadata; never identity proof |
-| `telegram_display_name` | Optional non-verified metadata |
-| `profile_photo_url` or media reference | Editable/refreshable profile field; validate remote/media handling |
-| `about` | User-editable, length-limited |
-| `is_verified` | Derived/account-state flag; changes only through verification service |
-| `is_suspended` | Staff-controlled |
+| `telegram_user_id` | Required, positive, unique; immutable through ordinary/admin edits after creation |
+| `telegram_username`, `telegram_first_name`, `telegram_last_name` | Optional current display metadata; never identity proof |
+| `status` | `ACTIVE`, `SUSPENDED`, or `DEACTIVATED` |
+| `is_verified`, `is_suspended` | Read-only properties derived from roster relation/account status |
 | `is_staff` / role membership | For Django admin access; use Django permissions/groups |
 | `last_seen_at`, `created_at`, `updated_at` | Operational timestamps |
 
-Do not duplicate editable copies of verified first name, last name, group, or lyceum as user-controlled fields.
+`about`, hobbies, and profile photo live in `student_profiles`. Do not duplicate editable copies of verified first name, last name, group, or lyceum as user-controlled fields.
 
 ### `student_records`
 
@@ -59,7 +85,21 @@ The imported official roster. This is sensitive staff data.
 | `verified_user_id` | Nullable one-to-one FK to `users` |
 | `verified_at`, `created_at`, `updated_at` | Audit/operational timestamps |
 
-The roster import must fail or produce an administrator-visible reconciliation report for duplicate keys or ambiguous matches. A user can be bound to one active roster record; a roster record can be bound to at most one user.
+The roster import must fail or produce an administrator-visible reconciliation report for duplicate keys or ambiguous matches. A user can be bound to one active roster record; a roster record can be bound to at most one user. Import and code-redemption workflows are deferred to Phase 2.
+
+### `student_profiles`
+
+| Field | Notes |
+|---|---|
+| `id` | UUID primary key |
+| `user_id` | Required one-to-one FK to `users` |
+| `about` | User-editable text, max 1,000 characters |
+| `hobbies` | User-editable text, max 500 characters |
+| `profile_photo_url` | User-editable URL reference, max 500 characters |
+| `interests` | Reusable many-to-many interest relation |
+| `created_at`, `updated_at` | UTC timestamps |
+
+Verified lyceum, group, and official identity are derived read-only properties that traverse the linked student record; they are not profile columns.
 
 ### `interest_tags`
 
@@ -71,6 +111,8 @@ The roster import must fail or produce an administrator-visible reconciliation r
 | `is_active` | Staff-controlled availability |
 
 Join tables `user_interest_tags` and `club_interest_tags` use unique `(owner, tag)` pairs. Users and clubs may have configurable small maximum counts, e.g. 10, enforced by service validation.
+
+### Planned future entities (not migrated in Phase 1)
 
 ### `clubs`
 
@@ -192,7 +234,7 @@ Use explicit nullable typed targets to retain database referential integrity for
 
 Append-only staff/security audit records: actor, action, object type/ID, lyceum context, safe metadata, request correlation ID, and timestamp. Never write raw verification codes, `initData`, invite links, or bot tokens.
 
-## 3. Important constraints and indexes
+### Planned constraints and indexes
 
 - `users.telegram_user_id` unique.
 - `student_records.verified_user_id` unique and nullable.
@@ -208,7 +250,7 @@ Append-only staff/security audit records: actor, action, object type/ID, lyceum 
 
 The maximum-three-memberships rule spans rows and cannot be represented by a normal row-level unique constraint. Enforce it in a transaction that locks the user row before counting active memberships. If a deployment requires protection against writes outside Django, add and test a PostgreSQL trigger after measuring the operational cost; application services remain the primary write path.
 
-## 4. Transaction boundaries
+### Planned transaction boundaries
 
 - Verification binding: lock the roster row and user identity; check both are unbound; bind atomically.
 - Club creation: lock the user; check no owned club and membership count; insert club and owner membership together.
@@ -216,7 +258,7 @@ The maximum-three-memberships rule spans rows and cannot be represented by a nor
 - Club approval/rejection: lock the club; re-check current status; record decision and enqueue notification after commit.
 - Membership removal: mark membership removed and enqueue access-revocation/delivery work after commit.
 
-## 5. Roster import and updates
+### Planned roster import and updates
 
 Imports are administrator-only, idempotent by the official stable key where available, and produce a reconciliation report. A record becoming inactive prevents new verification and new actions but does not silently rewrite historical club or membership records. If the administration changes a student’s group/name, future reads use the current official record; the audit trail records the change.
 

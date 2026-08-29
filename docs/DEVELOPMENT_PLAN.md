@@ -1,6 +1,6 @@
 # LYC Society Development Plan
 
-The repository is currently in **Phase 0: specification and architecture**. This document is the gate for future implementation. No Phase 1 product features should be started from the current task.
+Phase 0 is complete. **Phase 1 foundation code is implemented but awaits runtime verification** because the current environment has no Python runtime, PostgreSQL client, Docker, or installed PostgreSQL service. Do not begin Phase 2 until migrations, Django checks, and PostgreSQL-backed tests pass in a suitable environment.
 
 ## Phase 0 — Documentation baseline (complete for this task)
 
@@ -16,11 +16,13 @@ Exit criteria: all source-of-truth documents exist, contradictions are recorded,
 
 Deliverables:
 
-- Django project, settings separation, environment configuration, health check, logging, error handling, and PostgreSQL connection.
-- Custom user model and initial domain apps.
-- Initial migrations for lyceums, users, student records, tags, clubs, memberships, requests, meetings, announcements, notifications, reports, audit, and Telegram integration.
-- Base API versioning, pagination, validation, permission helpers, and test harness.
-- Admin authentication foundation and migration/backup practices.
+- Django project, settings separation, environment configuration, health check, logging, error handling, and PostgreSQL-only connection settings.
+- Custom user model plus `common`, `identity`, `lyceums`, and `profiles` domain apps.
+- Initial migrations for users, lyceums, official student records, student profiles, and interest tags only.
+- Base `/api/v1/` routing, JSON error envelope, pagination, a future verified-student permission, and test harness.
+- Django Admin foundation and local PostgreSQL setup documentation.
+
+Implementation boundary: clubs, memberships, join requests, meetings, announcements, notifications, reports, audits, and Telegram integration are deliberately not migrated or scaffolded in this phase. This supersedes the earlier broad Phase 1 migration wording to comply with Prompt 01's explicit scope.
 
 Exit criteria:
 

@@ -13,3 +13,8 @@ os.environ.setdefault("DJANGO_DB_PORT", "5432")
 from .base import *  # noqa: E402,F403
 
 PASSWORD_HASHERS = ["django.contrib.auth.hashers.MD5PasswordHasher"]
+ALLOWED_HOSTS = ["testserver", "localhost", "127.0.0.1"]
+SECURE_SSL_REDIRECT = False
+SESSION_COOKIE_SECURE = False
+CSRF_COOKIE_SECURE = False
+SECURE_HSTS_SECONDS = 0

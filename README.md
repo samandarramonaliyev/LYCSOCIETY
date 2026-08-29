@@ -42,6 +42,7 @@ It deliberately does not include the React Mini App, Telegram bot, Telegram auth
 
    ```powershell
    python backend/manage.py test --settings=config.settings.test
+   python backend/manage.py makemigrations --check --dry-run
    python backend/manage.py check --deploy --settings=config.settings.production
    ```
 

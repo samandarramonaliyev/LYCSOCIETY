@@ -2,6 +2,10 @@
 
 Security is a product requirement, not a frontend feature. The backend and database enforce all identity, lyceum, role, and state rules.
 
+## Phase 1 implementation status
+
+The current implementation has environment-only secrets, PostgreSQL-only settings, a unique positive Telegram numeric identity, separate sensitive roster records, separate editable profiles, database constraints, staff-only Django Admin, and no public roster/profile API. Telegram `initData` validation, Telegram-derived sessions, verification-code redemption, rate limits, and product object authorization are intentionally deferred; their documented controls are not yet implemented.
+
 ## 1. Trust boundaries
 
 Untrusted inputs:

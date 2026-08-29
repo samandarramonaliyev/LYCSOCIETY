@@ -1,7 +1,6 @@
 # Generated manually for the Phase 1 foundation. Verify with Django makemigrations --check.
 
 from django.conf import settings
-from django.core.validators import MinValueValidator
 from django.db import migrations, models
 from django.db.models.deletion import PROTECT
 from django.db.models.functions import Lower

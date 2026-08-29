@@ -1,6 +1,6 @@
 # LYC Society API Contract
 
-This is the planned boundary for the Django REST Framework API. It is a contract and implementation guide, not an instruction to implement the endpoints in this documentation phase.
+This is the API contract and implementation guide. In Phase 1, only the API foundation and health endpoint are implemented; all product routes below remain planned until their named phases.
 
 ## 1. Conventions
 
@@ -28,7 +28,17 @@ Example error shape:
 
 Do not return database exception text, roster data, Telegram tokens, raw chat IDs, or internal stack traces.
 
-## 2. Authentication and account
+## 2. Implemented Phase 1 foundation
+
+| Method | Route | Auth | Purpose |
+|---|---|---|---|
+| `GET` | `/health/` | None | Database liveness/readiness check; returns `200` after `SELECT 1` succeeds and `503` if PostgreSQL is unavailable |
+
+The deployed route is `/api/v1/health/`. DRF currently uses session authentication, `IsAuthenticated` as the default permission, JSON rendering, page-number pagination (20 default / 100 maximum), and a custom error envelope. The health endpoint explicitly overrides the authenticated default.
+
+No user, roster, profile, verification, or staff API endpoint exists in Phase 1. Official student data is not publicly serializable.
+
+## 3. Planned: Authentication and account
 
 | Method | Route | Auth | Purpose |
 |---|---|---|---|
@@ -42,7 +52,7 @@ Do not return database exception text, roster data, Telegram tokens, raw chat ID
 
 The authentication endpoint must not accept `telegram_user_id`, verified name, group, or lyceum as authoritative request fields. The user identity comes from validated `initData`; verified fields come from the roster binding.
 
-## 3. Discovery and clubs
+## 4. Planned: Discovery and clubs
 
 | Method | Route | Auth | Scope/permission |
 |---|---|---|---|
@@ -56,7 +66,7 @@ The authentication endpoint must not accept `telegram_user_id`, verified name, g
 
 Normal discovery never returns `PENDING`, `REJECTED`, `SUSPENDED`, or `ARCHIVED` clubs. The owner may see their own non-active club; unrelated students receive not-found or forbidden behavior that does not disclose its existence.
 
-## 4. Join requests and memberships
+## 5. Planned: Join requests and memberships
 
 | Method | Route | Auth | Scope/permission |
 |---|---|---|---|
@@ -71,7 +81,7 @@ Normal discovery never returns `PENDING`, `REJECTED`, `SUSPENDED`, or `ARCHIVED`
 
 The API must not trust a club owner ID, requester ID, role, membership count, or lyceum supplied by the client.
 
-## 5. Meetings, announcements, and Telegram access
+## 6. Planned: Meetings, announcements, and Telegram access
 
 | Method | Route | Auth | Scope/permission |
 |---|---|---|---|
@@ -87,7 +97,7 @@ The API must not trust a club owner ID, requester ID, role, membership count, or
 
 Telegram group operations that require Bot API permissions are asynchronous/capability-dependent. An API response must expose a safe integration status, not imply success before the Bot API confirms it.
 
-## 6. Notifications and preferences
+## 7. Planned: Notifications and preferences
 
 | Method | Route | Auth | Purpose |
 |---|---|---|---|
@@ -99,7 +109,9 @@ Telegram group operations that require Bot API permissions are asynchronous/capa
 
 Notification creation is a domain side effect; recipients are derived from membership and account state. Clients cannot choose arbitrary recipients.
 
-## 7. Staff/admin boundary
+## 8. Implemented staff foundation and planned staff boundary
+
+The implemented Django Admin registers users, lyceums, official student records, profiles, and interests with search, filters, and read-only audit fields. It hides the verification-code hash and makes a persisted Telegram ID read-only after account creation.
 
 Use Django Admin plus custom staff views for MVP. If API-backed staff screens are added, keep them under a distinct namespace such as `/api/v1/admin/` and require staff permissions on every route.
 
@@ -115,7 +127,7 @@ Planned staff operations:
 
 Staff endpoints must scope by explicit authorized staff capability, record audit events, and avoid returning raw verification code hashes or Telegram invite links.
 
-## 8. Status codes and authorization behavior
+## 9. Status codes and authorization behavior
 
 - `200`/`201`: successful read/create/update.
 - `204`: successful action with no body.
@@ -128,7 +140,7 @@ Staff endpoints must scope by explicit authorized staff capability, record audit
 
 Use stable machine-readable error codes so the Mini App can present a clear message without inferring business rules from HTTP text.
 
-## 9. API test contract
+## 10. API test contract
 
 For every protected detail/action route, test:
 

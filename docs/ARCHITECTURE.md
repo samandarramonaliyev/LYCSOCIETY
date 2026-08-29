@@ -1,5 +1,7 @@
 # LYC Society Architecture
 
+**Implementation status:** Phase 1 implements the Django/PostgreSQL foundation only. The actual backend modules are `common`, `identity`, `lyceums`, and `profiles`; club, notification, moderation, and Telegram modules remain documented future boundaries and have not been scaffolded.
+
 ## 1. Recommended architecture
 
 Use a modular monolith:
@@ -35,9 +37,9 @@ Django/worker ── HTTPS ── Telegram Bot API
 
 The React application is a client of the API, not a trust boundary. Bot updates are also untrusted input until the adapter validates their shape and the domain service rechecks authorization.
 
-## 3. Target repository structure
+## 3. Current and planned repository structure
 
-The repository is empty, so this is the recommended initial structure rather than an existing layout:
+The repository now contains the Phase 1 backend foundation. The structure below remains the complete target layout; only the shared, identity, lyceum, and profile modules currently exist.
 
 ```text
 backend/
@@ -93,27 +95,27 @@ For bot callbacks and commands, the Telegram adapter maps the Telegram actor to 
 
 ## 5. Domain modules
 
-### Identity and lyceums
+### Implemented in Phase 1: Identity and lyceums
 
 Own Telegram identity binding, user suspension, official roster imports, verification attempts, and the derived verified-student/lyceum context.
 
-### Profiles
+### Implemented in Phase 1: Profiles
 
 Own editable profile fields and structured interest tags. Verified fields are read from the official student record and cannot be updated by the profile API.
 
-### Clubs
+### Planned: Clubs
 
 Own club lifecycle, ownership, memberships, join requests, meetings, announcements, and club-scoped authorization.
 
-### Notifications
+### Planned: Notifications
 
 Own notification preferences, in-app notification records, delivery outbox records, retry state, and deduplication. It receives domain events or explicit service calls; it does not decide whether a user was allowed to join a club.
 
-### Moderation
+### Planned: Moderation
 
 Own reports, report resolution, suspensions, archive actions, and the audit trail for privileged decisions.
 
-### Telegram integration
+### Planned: Telegram integration
 
 Own raw update parsing, webhook verification, Bot API calls, callback/action mapping, group-linking setup, and group join-request handling. It stores Telegram-specific identifiers in integration tables and calls domain services for authorization.
 
@@ -135,13 +137,19 @@ Every club, membership, join request, meeting, announcement, report target, and 
 
 Use code review and tests to enforce the rule that any new private entity must either have a direct `lyceum_id` or an unambiguous path to one.
 
-## 8. Side effects and consistency
+## 8. Current API foundation
+
+DRF is configured with session authentication, an authenticated-by-default permission policy, JSON rendering, page-number pagination (20 default / 100 maximum), and a non-leaking error envelope. The only implemented API endpoint is the unauthenticated database health check at `GET /api/v1/health/`.
+
+`IsVerifiedActiveStudent` exists only as a future permission foundation. Telegram authentication and every student-facing product endpoint remain out of scope until later phases.
+
+## 9. Side effects and consistency
 
 The database transaction is authoritative for verification, club approval, membership, meetings, and announcements. Telegram messages, invite-link creation, and group approvals are external side effects.
 
 Use an outbox row written in the same transaction as the domain change. A worker claims pending rows, performs an idempotent Bot API operation, records success/failure, and retries transient failures with backoff. A permanent failure is visible to administrators and does not undo the committed domain change.
 
-## 9. Deployment baseline
+## 10. Deployment baseline
 
 For MVP, deploy:
 
@@ -153,6 +161,6 @@ For MVP, deploy:
 
 Use environment/secret-manager configuration for database credentials, Django secret key, Telegram bot token, webhook secret, encryption key, allowed origins, and operational settings.
 
-## 10. Explicit non-goals
+## 11. Explicit non-goals
 
 Do not add WebSockets, Redis, Celery, Elasticsearch, a separate identity provider, a recommendation service, or a second frontend until measured requirements justify them and the decision is recorded.
