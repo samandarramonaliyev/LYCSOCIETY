@@ -2,6 +2,8 @@ from __future__ import annotations
 
 from pathlib import Path
 
+from django.core.exceptions import ImproperlyConfigured
+
 from .environment import env, env_bool, env_int, env_list
 
 BASE_DIR = Path(__file__).resolve().parent.parent.parent
@@ -96,6 +98,21 @@ MEDIA_ROOT = BASE_DIR / "media"
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 AUTH_USER_MODEL = "identity.User"
 
+TELEGRAM_BOT_TOKEN = env("TELEGRAM_BOT_TOKEN", required=True)
+TELEGRAM_INIT_DATA_MAX_AGE_SECONDS = env_int(
+    "TELEGRAM_INIT_DATA_MAX_AGE_SECONDS",
+    default=300,
+)
+TELEGRAM_INIT_DATA_FUTURE_SKEW_SECONDS = env_int(
+    "TELEGRAM_INIT_DATA_FUTURE_SKEW_SECONDS",
+    default=30,
+)
+
+if TELEGRAM_INIT_DATA_MAX_AGE_SECONDS <= 0:
+    raise ImproperlyConfigured("TELEGRAM_INIT_DATA_MAX_AGE_SECONDS must be positive.")
+if TELEGRAM_INIT_DATA_FUTURE_SKEW_SECONDS < 0:
+    raise ImproperlyConfigured("TELEGRAM_INIT_DATA_FUTURE_SKEW_SECONDS cannot be negative.")
+
 SESSION_COOKIE_HTTPONLY = True
 SESSION_COOKIE_SECURE = not DEBUG
 CSRF_COOKIE_SECURE = not DEBUG
@@ -124,8 +141,14 @@ REST_FRAMEWORK = {
     ],
     "DEFAULT_PAGINATION_CLASS": "apps.common.api.StandardPageNumberPagination",
     "PAGE_SIZE": 20,
+    "DEFAULT_THROTTLE_RATES": {
+        "telegram_auth": env("TELEGRAM_AUTH_THROTTLE_RATE", default="20/hour"),
+        "student_verification": env("STUDENT_VERIFICATION_THROTTLE_RATE", default="5/hour"),
+    },
     "EXCEPTION_HANDLER": "apps.common.api.exception_handler",
 }
+
+TEST_RUNNER = "config.test_runner.BackendDiscoverRunner"
 
 LOGGING = {
     "version": 1,

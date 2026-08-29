@@ -4,7 +4,7 @@
 
 LYC Society is a private Telegram Bot + Telegram Mini App for verified lyceum students. Students discover and join clubs in their verified lyceum, may create one club, and communicate through Telegram groups. The pilot starts with one lyceum but the data model is multi-lyceum from the beginning.
 
-This repository is currently documentation-only. No product features have been implemented.
+The repository currently contains the implemented Phase 2 backend foundation. Later-phase product features remain out of scope until their phase is explicitly requested.
 
 ## Source of truth
 

@@ -61,12 +61,12 @@ The schema may leave extension points, but no out-of-scope feature should add UI
 1. The user starts the Telegram Bot or opens the Mini App.
 2. The Mini App sends the raw Telegram `initData` to the backend.
 3. The backend validates the signature, timestamp, and Telegram user ID.
-4. The user completes the approved roster-verification method.
+4. The authenticated user selects a lyceum and submits their first name, last name, and group for the approved Phase 2 roster-match verification method.
 5. The backend matches the attempt to one active official student record and binds that record to the Telegram identity.
 6. The user receives an in-app and, where possible, Telegram verification result.
 7. Only a verified, non-suspended account may use protected product features.
 
-The exact user-provided verification input is an identified product ambiguity. The recommended MVP approach is an administrator-issued, single-use verification code bound to one roster record. See `docs/DECISIONS.md`.
+Phase 2 uses an exact, normalized match on lyceum, first name, last name, and group. A match is accepted only when it identifies exactly one active, unclaimed official record. This is a transitional onboarding check, not strong proof of identity: a person who knows another student's roster details could potentially claim that record. Generic failures, throttling, and administrator-only claim resets reduce disclosure and operational risk; an administrator-issued, single-use verification code remains the recommended stronger replacement. See `docs/DECISIONS.md`.
 
 ### 5.2 Discovery and club page
 

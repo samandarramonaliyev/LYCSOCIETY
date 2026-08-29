@@ -9,7 +9,9 @@ from django.db.models.functions import Lower
 from apps.common.models import UUIDTimeStampedModel
 
 
-def _normalize_text(value: str) -> str:
+def normalize_text(value: str) -> str:
+    """Normalize trusted matching inputs without applying fuzzy matching."""
+
     return " ".join(value.strip().split()).casefold()
 
 
@@ -79,6 +81,7 @@ class StudentRecord(UUIDTimeStampedModel):
     normalized_first_name = models.CharField(max_length=128, editable=False)
     normalized_last_name = models.CharField(max_length=128, editable=False)
     group_name = models.CharField(max_length=64)
+    normalized_group_name = models.CharField(max_length=64, editable=False)
     status = models.CharField(
         max_length=16,
         choices=StudentRecordStatus.choices,
@@ -121,7 +124,17 @@ class StudentRecord(UUIDTimeStampedModel):
             models.Index(
                 fields=("lyceum", "status", "group_name"),
                 name="lyceums_record_scope_group_idx",
-            )
+            ),
+            models.Index(
+                fields=(
+                    "lyceum",
+                    "status",
+                    "normalized_first_name",
+                    "normalized_last_name",
+                    "normalized_group_name",
+                ),
+                name="lyceums_record_match_idx",
+            ),
         ]
 
     def __str__(self) -> str:
@@ -137,10 +150,11 @@ class StudentRecord(UUIDTimeStampedModel):
 
     def save(self, *args: Any, **kwargs: Any) -> None:
         self.external_student_key = (
-            _normalize_text(self.external_student_key) if self.external_student_key else None
+            normalize_text(self.external_student_key) if self.external_student_key else None
         )
-        self.normalized_first_name = _normalize_text(self.first_name)
-        self.normalized_last_name = _normalize_text(self.last_name)
+        self.normalized_first_name = normalize_text(self.first_name)
+        self.normalized_last_name = normalize_text(self.last_name)
+        self.normalized_group_name = normalize_text(self.group_name)
 
         update_fields = kwargs.get("update_fields")
         if update_fields is not None:
@@ -148,6 +162,7 @@ class StudentRecord(UUIDTimeStampedModel):
                 "external_student_key",
                 "normalized_first_name",
                 "normalized_last_name",
+                "normalized_group_name",
             }
 
         super().save(*args, **kwargs)

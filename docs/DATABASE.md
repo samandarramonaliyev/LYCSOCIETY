@@ -2,17 +2,17 @@
 
 PostgreSQL is the source of truth. The examples below describe logical tables and constraints; Django migrations will define the physical schema.
 
-## 1. Phase 1 implementation
+## 1. Phases 1–2 implementation
 
 The following schema is implemented by initial migrations today:
 
 - `identity.User` has a UUID primary key, required unique positive `telegram_user_id`, optional Telegram display metadata, `ACTIVE`/`SUSPENDED`/`DEACTIVATED` account status, staff permissions, and timestamps. `is_verified` is a read-only property derived from an active linked official record rather than a duplicate database flag.
 - `lyceums.Lyceum` has a UUID primary key, case-insensitively unique normalized code, name, optional city, active/inactive status, and timestamps.
-- `lyceums.StudentRecord` is separate sensitive roster data. It owns official first/last name, group, lyceum, optional normalized external student key, normalized name fields, active/inactive state, future verification metadata, a nullable one-to-one `verified_user`, and timestamps.
+- `lyceums.StudentRecord` is separate sensitive roster data. It owns official first/last name, group, lyceum, optional normalized external student key, normalized first/last/group matching fields, active/inactive state, a nullable one-to-one `verified_user`, and timestamps.
 - `profiles.StudentProfile` is a separate one-to-one editable profile with `about`, `hobbies`, optional profile-photo URL, interests, and timestamps. It has no writable lyceum, group, or official-identity column.
 - `profiles.Interest` is a reusable staff-managed vocabulary with case-insensitively unique name and slug. The automatic many-to-many join table prevents duplicate profile-interest pairs.
 
-The profile creation signal creates one profile for every normally-created user. `StudentRecord.verified_user` uses `PROTECT`, while a profile uses `CASCADE` because it contains only application-editable data. The official record uses an optional normalized external key when supplied by the administration; name and group are deliberately not identity constraints.
+The profile creation signal creates one profile for every normally-created user. `StudentRecord.verified_user` uses `PROTECT`, while a profile uses `CASCADE` because it contains only application-editable data. The official record uses an optional normalized external key when supplied by the administration; name and group are deliberately not identity constraints. Phase 2 nevertheless uses the exact normalized tuple `(lyceum, first_name, last_name, group_name)` only as a provisional claim lookup: it claims a record only when exactly one active unclaimed record matches. Duplicate rows are therefore possible in the schema and must fail verification as ambiguous rather than being silently selected.
 
 Implemented database constraints and indexes:
 
@@ -23,7 +23,8 @@ Implemented database constraints and indexes:
 - `verified_user` and `verified_at` must be both null or both populated;
 - non-negative verification attempts;
 - case-insensitive unique interest names/slugs; and
-- a scoped roster index on `(lyceum, status, group_name)`.
+- a scoped roster index on `(lyceum, status, group_name)` and an exact normalized roster-match index; and
+- one-to-one record claim integrity enforced by `verified_user` plus an atomic, row-locked claim service.
 
 PostgreSQL is mandatory. The settings have no SQLite fallback, including for tests.
 
@@ -77,15 +78,17 @@ The imported official roster. This is sensitive staff data.
 | `lyceum_id` | Required FK to `lyceums` |
 | `external_student_key` | Stable official identifier if the administration supplies one; unique per lyceum/import domain |
 | `first_name`, `last_name` | Official values |
-| `normalized_first_name`, `normalized_last_name` | Matching support; do not expose |
+| `normalized_first_name`, `normalized_last_name`, `normalized_group_name` | Exact normalized matching support; do not expose |
 | `group_name` | Official group |
-| `verification_code_hash` | Optional one-time-code hash; never store raw code |
-| `verification_code_expires_at`, `verification_attempts` | Brute-force controls |
+| `verification_code_hash` | Reserved for a future stronger code-based flow; never store raw code |
+| `verification_code_expires_at`, `verification_attempts` | Reserved verification metadata; Phase 2 uses API throttling rather than these fields |
 | `status` | `ACTIVE` or `INACTIVE` |
 | `verified_user_id` | Nullable one-to-one FK to `users` |
 | `verified_at`, `created_at`, `updated_at` | Audit/operational timestamps |
 
-The roster import must fail or produce an administrator-visible reconciliation report for duplicate keys or ambiguous matches. A user can be bound to one active roster record; a roster record can be bound to at most one user. Import and code-redemption workflows are deferred to Phase 2.
+The Phase 2 roster import is a trusted-operator management command. It accepts UTF-8 CSV with `lyceum`, `first_name`, `last_name`, and `group` headers, plus an optional `external_student_key`. `lyceum` is an existing stable lyceum code. Rows are trimmed and normalized; duplicate tuples in a file or an idempotent repeat import are skipped, conflicting external keys and malformed rows are reported with row numbers, and any validation error rolls back the whole import. Existing records, especially claimed records, are never overwritten by an import.
+
+A user can be bound to one active roster record; a roster record can be bound to at most one user. The exact roster-match claim service locks both the user and candidate record(s), rechecks the claim relationship, and writes `verified_user` and `verified_at` together.
 
 ### `student_profiles`
 

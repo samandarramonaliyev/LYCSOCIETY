@@ -1,6 +1,9 @@
 from __future__ import annotations
 
 from django.contrib import admin
+from django.contrib import messages
+from django.db import transaction
+from django.utils import timezone
 
 from .models import Lyceum, StudentRecord
 
@@ -16,6 +19,7 @@ class LyceumAdmin(admin.ModelAdmin):
 
 @admin.register(StudentRecord)
 class StudentRecordAdmin(admin.ModelAdmin):
+    actions = ("reset_verification_claims",)
     list_display = (
         "last_name",
         "first_name",
@@ -40,6 +44,7 @@ class StudentRecordAdmin(admin.ModelAdmin):
         "id",
         "normalized_first_name",
         "normalized_last_name",
+        "normalized_group_name",
         "verification_attempts",
         "verified_user",
         "verified_at",
@@ -66,6 +71,7 @@ class StudentRecordAdmin(admin.ModelAdmin):
                 "fields": (
                     "normalized_first_name",
                     "normalized_last_name",
+                    "normalized_group_name",
                 )
             },
         ),
@@ -86,3 +92,17 @@ class StudentRecordAdmin(admin.ModelAdmin):
     @admin.display(boolean=True, description="Claimed")
     def claim_state(self, student_record: StudentRecord) -> bool:
         return student_record.is_claimed
+
+    @admin.action(description="Reset verification claims for selected official records")
+    def reset_verification_claims(self, request, queryset) -> None:  # type: ignore[no-untyped-def]
+        with transaction.atomic():
+            reset_count = queryset.filter(verified_user__isnull=False).update(
+                verified_user=None,
+                verified_at=None,
+                updated_at=timezone.now(),
+            )
+        self.message_user(
+            request,
+            f"Reset {reset_count} verification claim(s).",
+            level=messages.WARNING,
+        )

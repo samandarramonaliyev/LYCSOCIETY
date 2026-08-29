@@ -1,6 +1,6 @@
 # LYC Society Architecture
 
-**Implementation status:** Phase 1 implements the Django/PostgreSQL foundation only. The actual backend modules are `common`, `identity`, `lyceums`, and `profiles`; club, notification, moderation, and Telegram modules remain documented future boundaries and have not been scaffolded.
+**Implementation status:** Phase 2 extends the Django/PostgreSQL foundation in the existing `common`, `identity`, `lyceums`, and `profiles` modules. It adds Telegram Mini App session authentication, official-record claiming, and roster import only; club, notification, moderation, and Telegram group modules remain future boundaries and have not been scaffolded.
 
 ## 1. Recommended architecture
 
@@ -95,11 +95,11 @@ For bot callbacks and commands, the Telegram adapter maps the Telegram actor to 
 
 ## 5. Domain modules
 
-### Implemented in Phase 1: Identity and lyceums
+### Implemented in Phases 1–2: Identity and lyceums
 
-Own Telegram identity binding, user suspension, official roster imports, verification attempts, and the derived verified-student/lyceum context.
+Own validated Telegram identity binding, secure server-side sessions, user suspension, official roster imports, exact roster-match verification, atomic record claims, verification throttling, and the derived verified-student/lyceum context.
 
-### Implemented in Phase 1: Profiles
+### Implemented in Phases 1–2: Profiles
 
 Own editable profile fields and structured interest tags. Verified fields are read from the official student record and cannot be updated by the profile API.
 
@@ -139,9 +139,9 @@ Use code review and tests to enforce the rule that any new private entity must e
 
 ## 8. Current API foundation
 
-DRF is configured with session authentication, an authenticated-by-default permission policy, JSON rendering, page-number pagination (20 default / 100 maximum), and a non-leaking error envelope. The only implemented API endpoint is the unauthenticated database health check at `GET /api/v1/health/`.
+DRF is configured with session authentication, an authenticated-by-default permission policy, JSON rendering, page-number pagination (20 default / 100 maximum), throttling, and a non-leaking error envelope. The implemented public/session endpoints are the unauthenticated database health check at `GET /api/v1/health/`, `POST /api/v1/auth/telegram/`, `POST /api/v1/auth/logout/`, `GET /api/v1/auth/me/`, `GET /api/v1/verification/status/`, and `POST /api/v1/verification/claim/`.
 
-`IsVerifiedActiveStudent` exists only as a future permission foundation. Telegram authentication and every student-facing product endpoint remain out of scope until later phases.
+`IsVerifiedActiveStudent` is the reusable permission for future student-facing routes. It requires an authenticated, active account with an active claimed official record and an active lyceum. Club and other student-facing product endpoints remain out of scope until later phases.
 
 ## 9. Side effects and consistency
 

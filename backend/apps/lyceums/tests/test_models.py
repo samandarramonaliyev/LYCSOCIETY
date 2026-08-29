@@ -57,11 +57,13 @@ class StudentRecordModelTests(TestCase):
             external_student_key=" Student-001 ",
             first_name="  Sam ",
             last_name=" KARIMOV ",
+            group_name="  10-B  ",
         )
 
         self.assertEqual(record.external_student_key, "student-001")
         self.assertEqual(record.normalized_first_name, "sam")
         self.assertEqual(record.normalized_last_name, "karimov")
+        self.assertEqual(record.normalized_group_name, "10-b")
 
     def test_external_student_key_can_repeat_in_another_lyceum(self) -> None:
         self.create_record(external_student_key="student-001")

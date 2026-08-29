@@ -9,6 +9,7 @@ os.environ.setdefault("DJANGO_DB_USER", "lyc_society")
 os.environ.setdefault("DJANGO_DB_PASSWORD", "lyc_society")
 os.environ.setdefault("DJANGO_DB_HOST", "127.0.0.1")
 os.environ.setdefault("DJANGO_DB_PORT", "5432")
+os.environ.setdefault("TELEGRAM_BOT_TOKEN", "test-bot-token")
 
 from .base import *  # noqa: E402,F403
 

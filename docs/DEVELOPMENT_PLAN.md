@@ -1,6 +1,6 @@
 # LYC Society Development Plan
 
-Phase 0 is complete. **Phase 1 foundation code is implemented but awaits runtime verification** because the current environment has no Python runtime, PostgreSQL client, Docker, or installed PostgreSQL service. Do not begin Phase 2 until migrations, Django checks, and PostgreSQL-backed tests pass in a suitable environment.
+Phases 0 and 1 are complete. **Phase 2 is the active implementation phase.** Its code may be closed only after Django checks, migration consistency checks, and PostgreSQL-backed tests pass in the configured local environment.
 
 ## Phase 0 — Documentation baseline (complete for this task)
 
@@ -35,18 +35,20 @@ Exit criteria:
 
 Deliverables:
 
-- Bot setup and Mini App login endpoint.
+- Bot-token configuration and Mini App login endpoint.
 - Exact Telegram `initData` HMAC and freshness validation.
 - Secure session creation and logout.
 - Staff roster import/reconciliation.
-- One-time verification-code flow, unless the product owner approves a different documented mechanism.
-- Verification status and notification behavior.
+- Exact normalized roster-match claim flow using lyceum, first name, last name, and group, with generic failures for no match, ambiguity, and claimed records.
+- Verification status endpoint, reusable verified-active-student permission, and administrator-only claim reset.
+- Trusted-operator CSV roster import with validation, deterministic duplicate handling, and row-number reporting.
 
 Exit criteria:
 
-- Forged, stale, replayed, duplicate, ambiguous, and brute-force attempts are tested.
+- Forged, stale, replayed, duplicate, ambiguous, and throttled attempts are tested.
 - Verified fields are read-only to the student.
 - Unverified users cannot reach protected product data.
+- The documented limitation of roster-detail matching is accepted explicitly; a stronger administration-controlled secret remains recommended before wider deployment.
 
 ## Phase 3 — Profiles + interests + lyceum isolation
 

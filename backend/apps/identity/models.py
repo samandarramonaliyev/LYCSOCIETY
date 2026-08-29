@@ -131,7 +131,7 @@ class User(UUIDTimeStampedModel, AbstractBaseUser, PermissionsMixin):
             student_record = self.student_record
         except ObjectDoesNotExist:
             return False
-        return student_record.is_active
+        return student_record.is_active and student_record.lyceum.is_active
 
     @property
     def can_access_student_features(self) -> bool:

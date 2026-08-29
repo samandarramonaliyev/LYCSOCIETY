@@ -34,13 +34,15 @@ This is the decision log for requirements that need an explicit interpretation. 
 **Decision:** First name, last name, group, and lyceum come from the bound official student record. Profile writes cannot change them.  
 **Reason:** This prevents frontend tampering and lets administrators update roster data later.
 
-### D-006 — One-time verification code is the provisional MVP method
+### D-006 — Exact roster matching is the Phase 2 pilot verification method
 
-**Status:** Provisional; product owner confirmation required before Phase 2  
-**Decision:** Administration issues a random, single-use, expiring code bound to one imported student record. The user redeems it after Telegram authentication.  
-**Reason:** “Provided student information matches the official list” does not define the input, and name/group matching alone is enumerable, ambiguous, and vulnerable to impersonation. A code preserves the official roster as private data.
+**Status:** Accepted for Phase 2 by product-owner instruction; high-risk transitional control
+**Decision:** After validated Telegram authentication, a user selects a lyceum and submits first name, last name, and group. The backend normalizes those values and claims a record only when exactly one active, unclaimed official record matches. Zero, ambiguous, inactive, and already-claimed candidate states return the same generic failure; an already verified user cannot claim again.
+**Reason:** The Phase 2 product instruction explicitly authorizes this method instead of a code. It enables pilot onboarding from the available roster while preserving atomic one-to-one claims and minimizing roster enumeration.
 
-**Alternative requiring an explicit decision:** name + last name + group matching, optionally with a staff confirmation step. Do not implement this alternative silently.
+**Security impact:** This is not proof that the Telegram user owns the official identity. Anyone who knows another student's roster details may attempt a claim. Per-account throttling, generic errors, short-lived validated Telegram data, and administrator-only reset reduce risk but do not eliminate it.
+
+**Required follow-up:** Replace this method before wider deployment with an administrator-issued, single-use, expiring verification code or another administration-controlled secret. Do not silently treat roster knowledge as strong identity proof.
 
 ### D-007 — Owner membership counts toward the three-club limit
 
@@ -112,13 +114,33 @@ This is the decision log for requirements that need an explicit interpretation. 
 
 **Status:** Accepted
 **Decision:** Settings require PostgreSQL environment variables and have no SQLite fallback, including tests.
-**Reason:** PostgreSQL constraints and behavior are the production contract. The current workspace has no Python or PostgreSQL tooling, so runtime verification is recorded as pending rather than substituted with SQLite.
+**Reason:** PostgreSQL constraints and behavior are the production contract. Phase 1 runtime verification is complete; Phase 2 must use the same PostgreSQL-only test environment rather than substitute SQLite.
+
+### D-019 — Telegram initialization freshness and bounded replay mitigation
+
+**Status:** Accepted for Phase 2
+**Decision:** Validate raw Mini App `initData` with Telegram's HMAC-SHA-256 data-check-string algorithm, require `auth_date` within a configurable five-minute default window (with 30 seconds of allowed future skew), and store a SHA-256-derived hash key in Django's cache for that same window. A reused signed payload in that window is rejected and successful authentication rotates the Django session key.
+**Reason:** Telegram's signed payload establishes identity but can otherwise be presented more than once while fresh. This limits replay without logging raw init data or introducing a new persistent authentication-token table.
+
+**Operational constraint:** Production deployments with multiple application processes must configure a shared cache for replay protection; a process-local cache only reduces replay risk within that process.
+
+### D-020 — Roster CSV import and duplicate policy
+
+**Status:** Accepted for Phase 2
+**Decision:** A trusted server operator runs a Django management command on UTF-8 CSV containing `lyceum`, `first_name`, `last_name`, and `group`, with optional `external_student_key`. Lyceum codes must already exist. The command never updates or deletes existing records. A repeated exact normalized tuple is skipped; a conflicting external key or malformed row is an error reported with its CSV row number. Any validation error rolls back the entire import.
+**Reason:** It gives administrators a small, auditable operational path without exposing roster data through a normal-user API or adding a Phase 7 custom dashboard.
+
+### D-021 — Administrator-controlled claim reset
+
+**Status:** Accepted for Phase 2
+**Decision:** Normal users cannot replace their claimed record. A trusted Django administrator may reset a claim through the official-record administration workflow, clearing both sides of the claim timestamp pair. The former user remains an authenticated but unverified account until a subsequent authorized claim.
+**Reason:** It prevents account takeover or lyceum-switching through ordinary API calls while allowing staff to correct an onboarding error.
 
 ## Open risks and ambiguities
 
 | ID | Requirement gap | Why it matters | Recommendation |
 |---|---|---|---|
-| A-01 | Verification input and issuance process are unspecified | Names/groups can collide; roster enumeration can expose students; code distribution affects operations | Confirm D-006 with lyceum administration before Phase 2 |
+| A-01 | Roster-detail verification is not strong identity proof | Names/groups can be known by another person; a successful exact match can still be an impersonation | Replace D-006's transitional flow with an administration-controlled secret before wider deployment |
 | A-02 | Whether owner membership counts toward three is unspecified | It changes club creation eligibility and database/test rules | Confirm D-007 before Phase 4 |
 | A-03 | Club owner transfer/orphan behavior is unspecified | Deleting/leaving an owner could break approvals, group integration, and announcements | Keep owner fixed; confirm D-014 before Phase 4 |
 | A-04 | “Where applicable” Telegram group access is underspecified | Bot admin rights and invite/join-request behavior vary by chat configuration | Require explicit setup checks and degraded state; confirm operationally in Phase 5 |
