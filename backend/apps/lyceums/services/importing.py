@@ -13,6 +13,22 @@ REQUIRED_HEADERS = frozenset({"lyceum", "first_name", "last_name", "group"})
 OPTIONAL_HEADERS = frozenset({"external_student_key"})
 
 
+class _LineTrackingIterator:
+    """Track physical source-file lines independently of csv.reader error state."""
+
+    def __init__(self, csv_file: TextIO) -> None:
+        self._csv_file = csv_file
+        self.line_number = 0
+
+    def __iter__(self) -> "_LineTrackingIterator":
+        return self
+
+    def __next__(self) -> str:
+        line = next(self._csv_file)
+        self.line_number += 1
+        return line
+
+
 @dataclass(frozen=True)
 class RosterImportError:
     row_number: int
@@ -70,12 +86,21 @@ def _validate_headers(reader: csv.DictReader[str]) -> RosterImportResult | None:
     return None
 
 
-def _parse_rows(reader: csv.DictReader[str]) -> tuple[list[RosterImportRow], RosterImportResult]:
+def _parse_rows(
+    reader: csv.DictReader[str],
+    line_tracker: _LineTrackingIterator,
+) -> tuple[list[RosterImportRow], RosterImportResult]:
     result = RosterImportResult()
     rows: list[RosterImportRow] = []
     seen_tuples: set[tuple[str, str, str, str]] = set()
 
-    for row_number, row in enumerate(reader, start=2):
+    while True:
+        row_number = line_tracker.line_number + 1
+        try:
+            row = next(reader)
+        except StopIteration:
+            break
+
         if None in row:
             result.errors.append(RosterImportError(row_number, "row has too many columns"))
             continue
@@ -144,12 +169,21 @@ def _parse_rows(reader: csv.DictReader[str]) -> tuple[list[RosterImportRow], Ros
 def import_student_records(csv_file: TextIO) -> RosterImportResult:
     """Validate and atomically import an administrator-supplied official roster CSV."""
 
-    reader = csv.DictReader(csv_file)
-    header_result = _validate_headers(reader)
-    if header_result is not None:
-        return header_result
+    reader: csv.DictReader[str] | None = None
+    line_tracker = _LineTrackingIterator(csv_file)
+    try:
+        reader = csv.DictReader(line_tracker, strict=True)
+        header_result = _validate_headers(reader)
+        if header_result is not None:
+            return header_result
 
-    rows, result = _parse_rows(reader)
+        rows, result = _parse_rows(reader, line_tracker)
+    except (csv.Error, UnicodeError) as exc:
+        row_number = max(1, line_tracker.line_number)
+        return RosterImportResult(
+            errors=[RosterImportError(row_number, f"malformed CSV: {exc}")]
+        )
+
     if result.errors:
         return result
 

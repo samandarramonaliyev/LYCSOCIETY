@@ -13,6 +13,12 @@ class TelegramAuthenticationSerializer(serializers.Serializer):
         trim_whitespace=False,
     )
 
+    def validate(self, attrs: dict[str, str]) -> dict[str, str]:
+        unexpected_fields = set(self.initial_data) - set(self.fields)
+        if unexpected_fields:
+            raise serializers.ValidationError("Only init_data is accepted.")
+        return attrs
+
 
 def verification_status_for(user: User) -> str:
     if user.status == AccountStatus.SUSPENDED:

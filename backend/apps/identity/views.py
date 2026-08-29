@@ -7,6 +7,7 @@ from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
+from apps.identity.authentication import CsrfRequiredAnonymousAuthentication
 from apps.identity.serializers import (
     TelegramAuthenticationSerializer,
     serialize_account_state,
@@ -15,10 +16,25 @@ from apps.identity.services.telegram import authenticate_telegram_user
 from apps.identity.throttling import TelegramAuthenticationThrottle
 
 
-class TelegramAuthenticationAPIView(APIView):
+class CsrfTokenAPIView(APIView):
+    """Issue a CSRF token before the unauthenticated session-login POST."""
+
     authentication_classes: list = []
     permission_classes = [AllowAny]
+
+    def get(self, request) -> Response:  # type: ignore[no-untyped-def]
+        return Response({"csrf_token": get_token(request)})
+
+
+class TelegramAuthenticationAPIView(APIView):
+    authentication_classes = [CsrfRequiredAnonymousAuthentication]
+    permission_classes = [AllowAny]
     throttle_classes = [TelegramAuthenticationThrottle]
+
+    def get_authenticate_header(self, request) -> str:  # type: ignore[no-untyped-def]
+        """Keep invalid Telegram credentials on the API's documented 401 path."""
+
+        return "Telegram"
 
     def post(self, request) -> Response:  # type: ignore[no-untyped-def]
         serializer = TelegramAuthenticationSerializer(data=request.data)

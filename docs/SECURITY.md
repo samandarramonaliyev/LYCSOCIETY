@@ -24,14 +24,15 @@ Trusted sources after validation:
 
 ## 2. Telegram authentication
 
-The planned login flow is:
+The implemented login flow is:
 
-1. The Mini App sends the raw `Telegram.WebApp.initData` string to `POST /api/v1/auth/telegram`.
-2. The backend parses the query-string fields without changing their signed representation.
-3. It parses the query string once, rejects duplicate critical fields, derives the Telegram Web App secret as `HMAC_SHA256(key="WebAppData", message=bot_token)`, and validates the HMAC-SHA-256 hash using constant-time comparison.
-4. It verifies a configurable bounded `auth_date` freshness window and small future-clock allowance.
-5. It extracts the Telegram user ID from the validated payload and looks up the unique application user.
-6. It creates/rotates a secure server-side session and returns only account state needed by the client.
+1. The same-origin Mini App requests `GET /api/v1/auth/csrf/`, which sets a CSRF cookie and returns a CSRF token.
+2. It sends that token in `X-CSRFToken` with raw `Telegram.WebApp.initData` to `POST /api/v1/auth/telegram/`.
+3. The backend parses the query-string fields without changing their signed representation.
+4. It parses the query string once, rejects duplicate critical fields, derives the Telegram Web App secret as `HMAC_SHA256(key="WebAppData", message=bot_token)`, and validates the HMAC-SHA-256 hash using constant-time comparison.
+5. It verifies a configurable bounded `auth_date` freshness window and small future-clock allowance.
+6. It extracts the Telegram user ID from the validated payload and looks up the unique application user.
+7. It creates/rotates a secure server-side session and returns only account state needed by the client.
 
 For replay-risk reduction, the validated hash is stored only as a SHA-256-derived cache key for the freshness-window lifetime. A duplicate hash is rejected during that window; successful login rotates the Django session key. This cache control is intentionally a bounded mitigation rather than a long-term identity proof and must use a shared production cache when the application is deployed on multiple processes.
 
@@ -45,7 +46,7 @@ Prefer Django server-side session authentication for the same-origin production 
 
 - `Secure`, `HttpOnly`, appropriately scoped cookie.
 - `SameSite=Lax` where compatible with the deployed Mini App; if deployment requires cross-site cookies, explicitly use `SameSite=None; Secure` and a strict allowlist.
-- CSRF tokens on all cookie-authenticated state changes.
+- CSRF tokens on all cookie-authenticated state changes, including the session-creating Telegram login.
 - Same-origin production serving or a tightly configured HTTPS frontend origin.
 - No authentication tokens in localStorage.
 - Session invalidation on suspension, account rebind, or security incident.

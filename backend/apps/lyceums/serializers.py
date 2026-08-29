@@ -11,6 +11,12 @@ class VerificationClaimSerializer(serializers.Serializer):
     last_name = serializers.CharField(max_length=128, trim_whitespace=False)
     group = serializers.CharField(max_length=64, trim_whitespace=False)
 
+    def validate(self, attrs: dict[str, object]) -> dict[str, object]:
+        unexpected_fields = set(self.initial_data) - set(self.fields)
+        if unexpected_fields:
+            raise serializers.ValidationError("Unexpected verification fields.")
+        return attrs
+
     def validate_first_name(self, value: str) -> str:
         return self._validate_matching_value(value)
 

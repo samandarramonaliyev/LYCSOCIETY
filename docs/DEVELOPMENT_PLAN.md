@@ -37,7 +37,7 @@ Deliverables:
 
 - Bot-token configuration and Mini App login endpoint.
 - Exact Telegram `initData` HMAC and freshness validation.
-- Secure session creation and logout.
+- CSRF-protected secure session creation, logout, and login-CSRF bootstrap.
 - Staff roster import/reconciliation.
 - Exact normalized roster-match claim flow using lyceum, first name, last name, and group, with generic failures for no match, ambiguity, and claimed records.
 - Verification status endpoint, reusable verified-active-student permission, and administrator-only claim reset.

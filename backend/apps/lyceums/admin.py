@@ -89,6 +89,20 @@ class StudentRecordAdmin(admin.ModelAdmin):
         ("Audit", {"fields": ("id", "created_at", "updated_at")} ),
     )
 
+    def get_readonly_fields(self, request, obj=None):  # type: ignore[no-untyped-def]
+        readonly_fields = list(super().get_readonly_fields(request, obj))
+        if obj is not None and obj.is_claimed:
+            readonly_fields.extend(
+                (
+                    "lyceum",
+                    "external_student_key",
+                    "first_name",
+                    "last_name",
+                    "group_name",
+                )
+            )
+        return readonly_fields
+
     @admin.display(boolean=True, description="Claimed")
     def claim_state(self, student_record: StudentRecord) -> bool:
         return student_record.is_claimed

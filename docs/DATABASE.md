@@ -30,7 +30,7 @@ PostgreSQL is mandatory. The settings have no SQLite fallback, including for tes
 
 ## 2. Target data-model roadmap
 
-The remaining sections retain the approved full-MVP schema for later phases. They are not a declaration that every table currently exists; the Phase 1 implementation section above takes precedence for the current database.
+The remaining sections retain the approved full-MVP schema for later phases. They are not a declaration that every table currently exists; the Phases 1–2 implementation section above takes precedence for the current database.
 
 ### Identifier and timestamp conventions
 
@@ -86,7 +86,7 @@ The imported official roster. This is sensitive staff data.
 | `verified_user_id` | Nullable one-to-one FK to `users` |
 | `verified_at`, `created_at`, `updated_at` | Audit/operational timestamps |
 
-The Phase 2 roster import is a trusted-operator management command. It accepts UTF-8 CSV with `lyceum`, `first_name`, `last_name`, and `group` headers, plus an optional `external_student_key`. `lyceum` is an existing stable lyceum code. Rows are trimmed and normalized; duplicate tuples in a file or an idempotent repeat import are skipped, conflicting external keys and malformed rows are reported with row numbers, and any validation error rolls back the whole import. Existing records, especially claimed records, are never overwritten by an import.
+The Phase 2 roster import is a trusted-operator management command. It accepts UTF-8 CSV with `lyceum`, `first_name`, `last_name`, and `group` headers, plus an optional `external_student_key`. `lyceum` is an existing stable lyceum code. Rows are trimmed and normalized; duplicate tuples in a file or an idempotent repeat import are skipped, conflicting external keys and malformed rows are reported with row numbers, and any validation error rolls back the whole import. Existing records, especially claimed records, are never overwritten by an import. In Django Admin, a claimed record's identity fields are read-only; staff reset its claim before correcting those fields.
 
 A user can be bound to one active roster record; a roster record can be bound to at most one user. The exact roster-match claim service locks both the user and candidate record(s), rechecks the claim relationship, and writes `verified_user` and `verified_at` together.
 

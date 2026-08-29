@@ -7,9 +7,11 @@ from urllib.parse import parse_qs, urlencode
 from django.core.cache import cache
 from django.test import override_settings
 from rest_framework.test import APITestCase
+from rest_framework.test import APIClient
 
 from apps.identity.models import AccountStatus, User
 from apps.identity.tests.helpers import TEST_BOT_TOKEN, build_signed_init_data
+from apps.lyceums.models import Lyceum, StudentRecord
 
 
 @override_settings(
@@ -20,6 +22,13 @@ from apps.identity.tests.helpers import TEST_BOT_TOKEN, build_signed_init_data
 class TelegramAuthenticationApiTests(APITestCase):
     def setUp(self) -> None:
         cache.clear()
+        self.client = APIClient(enforce_csrf_checks=True)
+
+    def csrf_token(self, client: APIClient | None = None) -> str:
+        csrf_client = self.client if client is None else client
+        response = csrf_client.get("/api/v1/auth/csrf/", secure=True)
+        self.assertEqual(response.status_code, 200)
+        return response.json()["csrf_token"]
 
     def authenticate(self, init_data: str):
         return self.client.post(
@@ -27,6 +36,8 @@ class TelegramAuthenticationApiTests(APITestCase):
             {"init_data": init_data},
             format="json",
             secure=True,
+            HTTP_REFERER="https://testserver/",
+            HTTP_X_CSRFTOKEN=self.csrf_token(),
         )
 
     def test_valid_signed_init_data_creates_an_authenticated_unverified_user(self) -> None:
@@ -51,6 +62,7 @@ class TelegramAuthenticationApiTests(APITestCase):
         response = self.authenticate(tampered_init_data)
 
         self.assertEqual(response.status_code, 401)
+        self.assertEqual(response["WWW-Authenticate"], "Telegram")
         self.assertEqual(response.json()["error"]["code"], "TELEGRAM_INIT_DATA_INVALID")
         self.assertEqual(User.objects.count(), 0)
 
@@ -117,7 +129,7 @@ class TelegramAuthenticationApiTests(APITestCase):
         self.assertEqual(user.telegram_first_name, "Updated")
         self.assertEqual(user.telegram_last_name, "Name")
 
-    def test_frontend_identity_fields_are_ignored(self) -> None:
+    def test_frontend_identity_fields_are_rejected_and_never_trusted(self) -> None:
         response = self.client.post(
             "/api/v1/auth/telegram/",
             {
@@ -126,10 +138,12 @@ class TelegramAuthenticationApiTests(APITestCase):
             },
             format="json",
             secure=True,
+            HTTP_REFERER="https://testserver/",
+            HTTP_X_CSRFTOKEN=self.csrf_token(),
         )
 
-        self.assertEqual(response.status_code, 200)
-        self.assertTrue(User.objects.filter(telegram_user_id=610_000_007).exists())
+        self.assertEqual(response.status_code, 400)
+        self.assertFalse(User.objects.filter(telegram_user_id=610_000_007).exists())
         self.assertFalse(User.objects.filter(telegram_user_id=999_999_999).exists())
 
     def test_suspended_account_does_not_receive_a_session(self) -> None:
@@ -150,6 +164,8 @@ class TelegramAuthenticationApiTests(APITestCase):
             {},
             format="json",
             secure=True,
+            HTTP_REFERER="https://testserver/",
+            HTTP_X_CSRFTOKEN=self.csrf_token(),
         )
         malformed_response = self.authenticate("not-a-query-string")
 
@@ -158,12 +174,75 @@ class TelegramAuthenticationApiTests(APITestCase):
         self.assertEqual(malformed_response.json()["error"]["code"], "TELEGRAM_INIT_DATA_INVALID")
 
     def test_logout_ends_the_session(self) -> None:
-        self.assertEqual(
-            self.authenticate(build_signed_init_data(telegram_user_id=610_000_009)).status_code,
-            200,
+        authentication_response = self.authenticate(
+            build_signed_init_data(telegram_user_id=610_000_009)
         )
+        self.assertEqual(authentication_response.status_code, 200)
 
-        logout_response = self.client.post("/api/v1/auth/logout/", secure=True)
+        logout_response = self.client.post(
+            "/api/v1/auth/logout/",
+            secure=True,
+            HTTP_REFERER="https://testserver/",
+            HTTP_X_CSRFTOKEN=authentication_response.json()["csrf_token"],
+        )
 
         self.assertEqual(logout_response.status_code, 204)
         self.assertEqual(self.client.get("/api/v1/auth/me/", secure=True).status_code, 403)
+
+    def test_session_authenticated_verification_requires_the_returned_csrf_token(self) -> None:
+        lyceum = Lyceum.objects.create(name="Tashkent Lyceum", code="tashkent-1")
+        StudentRecord.objects.create(
+            lyceum=lyceum,
+            external_student_key="student-csrf",
+            first_name="Sam",
+            last_name="Karimov",
+            group_name="10-B",
+        )
+        csrf_client = APIClient(enforce_csrf_checks=True)
+        bootstrap_response = csrf_client.get("/api/v1/auth/csrf/", secure=True)
+        self.assertEqual(bootstrap_response.status_code, 200)
+        init_data = build_signed_init_data(telegram_user_id=610_000_010)
+        missing_login_csrf_response = csrf_client.post(
+            "/api/v1/auth/telegram/",
+            {"init_data": init_data},
+            format="json",
+            secure=True,
+            HTTP_REFERER="https://testserver/",
+        )
+        self.assertEqual(missing_login_csrf_response.status_code, 403)
+        self.assertEqual(missing_login_csrf_response.json()["error"]["code"], "CSRF_FAILED")
+        self.assertFalse(User.objects.filter(telegram_user_id=610_000_010).exists())
+        authentication_response = csrf_client.post(
+            "/api/v1/auth/telegram/",
+            {"init_data": init_data},
+            format="json",
+            secure=True,
+            HTTP_REFERER="https://testserver/",
+            HTTP_X_CSRFTOKEN=bootstrap_response.json()["csrf_token"],
+        )
+        claim_payload = {
+            "lyceum_id": str(lyceum.id),
+            "first_name": "Sam",
+            "last_name": "Karimov",
+            "group": "10-B",
+        }
+
+        no_csrf_response = csrf_client.post(
+            "/api/v1/verification/claim/",
+            claim_payload,
+            format="json",
+            secure=True,
+            HTTP_REFERER="https://testserver/",
+        )
+        csrf_response = csrf_client.post(
+            "/api/v1/verification/claim/",
+            claim_payload,
+            format="json",
+            secure=True,
+            HTTP_REFERER="https://testserver/",
+            HTTP_X_CSRFTOKEN=authentication_response.json()["csrf_token"],
+        )
+
+        self.assertEqual(authentication_response.status_code, 200)
+        self.assertEqual(no_csrf_response.status_code, 403)
+        self.assertEqual(csrf_response.status_code, 200)

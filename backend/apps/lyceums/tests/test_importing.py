@@ -45,6 +45,17 @@ class StudentRecordImportTests(TestCase):
         self.assertEqual(result.errors[0].row_number, 1)
         self.assertEqual(StudentRecord.objects.count(), 0)
 
+    def test_malformed_csv_row_is_reported_without_writing_records(self) -> None:
+        result = self.import_csv(
+            "lyceum,first_name,last_name,group\n"
+            'tashkent-1,"Sam,Karimov,10-B\n'
+        )
+
+        self.assertFalse(result.is_valid)
+        self.assertEqual(result.errors[0].row_number, 2)
+        self.assertIn("malformed CSV", result.errors[0].message)
+        self.assertEqual(StudentRecord.objects.count(), 0)
+
     def test_missing_required_value_aborts_the_import(self) -> None:
         result = self.import_csv(
             "lyceum,first_name,last_name,group\n"
@@ -113,7 +124,7 @@ class StudentRecordImportTests(TestCase):
 
         try:
             output = StringIO()
-            call_command("import_student_records", csv_path, stdout=output)
+            call_command("import_student_records", str(csv_path), stdout=output)
         finally:
             csv_path.unlink(missing_ok=True)
 

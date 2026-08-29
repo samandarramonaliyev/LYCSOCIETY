@@ -118,6 +118,8 @@ class StudentVerificationApiTests(TestCase):
         self.assertEqual(claimed_response.status_code, 400)
         self.assertEqual(ambiguous_response.json(), zero_match_response.json())
         self.assertEqual(claimed_response.json(), zero_match_response.json())
+        claimed_record.refresh_from_db()
+        self.assertEqual(claimed_record.verified_user, owner)
         self.assertFalse(ambiguous_user.is_verified)
         self.assertFalse(claimed_user.is_verified)
 
@@ -214,6 +216,34 @@ class StudentVerificationApiTests(TestCase):
         self.assertEqual(verified_response.json()["verification_status"], "VERIFIED")
         self.assertTrue(verified_response.json()["can_access_student_features"])
         self.assertNotIn("external_student_key", verified_response.content.decode())
+
+    def test_authenticated_onboarding_can_list_only_active_lyceum_choices(self) -> None:
+        inactive_lyceum = Lyceum.objects.create(
+            name="Inactive Lyceum",
+            code="inactive-1",
+            status=LyceumStatus.INACTIVE,
+        )
+
+        anonymous_response = self.client.get("/api/v1/verification/lyceums/", secure=True)
+        self.client.force_login(self.user)
+        authenticated_response = self.client.get(
+            "/api/v1/verification/lyceums/",
+            secure=True,
+        )
+
+        self.assertEqual(anonymous_response.status_code, 403)
+        self.assertEqual(authenticated_response.status_code, 200)
+        self.assertEqual(
+            authenticated_response.json()["results"],
+            [
+                {
+                    "id": str(self.lyceum.id),
+                    "code": self.lyceum.code,
+                    "name": self.lyceum.name,
+                }
+            ],
+        )
+        self.assertNotIn(str(inactive_lyceum.id), authenticated_response.content.decode())
 
     def test_verified_active_permission_rejects_anonymous_unverified_and_suspended_users(self) -> None:
         permission = IsVerifiedActiveStudent()

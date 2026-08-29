@@ -59,11 +59,11 @@ The schema may leave extension points, but no out-of-scope feature should add UI
 ### 5.1 Verification
 
 1. The user starts the Telegram Bot or opens the Mini App.
-2. The Mini App sends the raw Telegram `initData` to the backend.
-3. The backend validates the signature, timestamp, and Telegram user ID.
+2. The Mini App obtains a same-origin CSRF token, then sends it with the raw Telegram `initData` to the backend.
+3. The backend validates the CSRF token, Telegram signature, timestamp, and Telegram user ID.
 4. The authenticated user selects a lyceum and submits their first name, last name, and group for the approved Phase 2 roster-match verification method.
 5. The backend matches the attempt to one active official student record and binds that record to the Telegram identity.
-6. The user receives an in-app and, where possible, Telegram verification result.
+6. The Mini App receives the safe API verification result; in-app and Telegram notification delivery remain a later Phase 5 concern.
 7. Only a verified, non-suspended account may use protected product features.
 
 Phase 2 uses an exact, normalized match on lyceum, first name, last name, and group. A match is accepted only when it identifies exactly one active, unclaimed official record. This is a transitional onboarding check, not strong proof of identity: a person who knows another student's roster details could potentially claim that record. Generic failures, throttling, and administrator-only claim resets reduce disclosure and operational risk; an administrator-issued, single-use verification code remains the recommended stronger replacement. See `docs/DECISIONS.md`.
@@ -128,6 +128,7 @@ An owner membership is created with the club. Owners cannot leave their own club
 ## 7. Privacy and visibility baseline
 
 - Verified first name, last name, lyceum, and group are server-owned.
+- A verified student may read and update only their own plain-text `about`, plain-text `hobbies`, HTTPS profile-photo reference, and administrator-managed interest selections. The self-profile API returns verified identity from the official record but never accepts it as writable input.
 - Public student-facing profiles show only the minimum approved fields: display name, profile photo if available, about text, and interests. Group is shown to a club owner for a join request and to administrators; it is not a public directory field by default.
 - Exact age is never displayed.
 - The complete official roster, verification codes, verification history, internal audit data, raw Telegram IDs, and invite links are restricted to authorized staff or integration code.

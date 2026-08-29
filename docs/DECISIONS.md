@@ -119,7 +119,7 @@ This is the decision log for requirements that need an explicit interpretation. 
 ### D-019 — Telegram initialization freshness and bounded replay mitigation
 
 **Status:** Accepted for Phase 2
-**Decision:** Validate raw Mini App `initData` with Telegram's HMAC-SHA-256 data-check-string algorithm, require `auth_date` within a configurable five-minute default window (with 30 seconds of allowed future skew), and store a SHA-256-derived hash key in Django's cache for that same window. A reused signed payload in that window is rejected and successful authentication rotates the Django session key.
+**Decision:** Validate raw Mini App `initData` with Telegram's HMAC-SHA-256 data-check-string algorithm, require `auth_date` within a configurable five-minute default window (with 30 seconds of allowed future skew), and store a SHA-256-derived hash key in Django's cache for that same window. A reused signed payload in that window is rejected and successful authentication rotates the Django session key. Persist only the numeric Telegram identity plus current username and name metadata; do not persist Telegram `photo_url` in Phase 2 because profile-photo policy belongs to Phase 3.
 **Reason:** Telegram's signed payload establishes identity but can otherwise be presented more than once while fresh. This limits replay without logging raw init data or introducing a new persistent authentication-token table.
 
 **Operational constraint:** Production deployments with multiple application processes must configure a shared cache for replay protection; a process-local cache only reduces replay risk within that process.
@@ -133,8 +133,14 @@ This is the decision log for requirements that need an explicit interpretation. 
 ### D-021 — Administrator-controlled claim reset
 
 **Status:** Accepted for Phase 2
-**Decision:** Normal users cannot replace their claimed record. A trusted Django administrator may reset a claim through the official-record administration workflow, clearing both sides of the claim timestamp pair. The former user remains an authenticated but unverified account until a subsequent authorized claim.
+**Decision:** Normal users cannot replace their claimed record. A trusted Django administrator may reset a claim through the official-record administration workflow, clearing both sides of the claim timestamp pair. Identity fields on a claimed record are read-only in that workflow, so staff reset the claim before correcting them. The former user remains an authenticated but unverified account until a subsequent authorized claim.
 **Reason:** It prevents account takeover or lyceum-switching through ordinary API calls while allowing staff to correct an onboarding error.
+
+### D-022 — CSRF-protected session creation
+
+**Status:** Accepted for Phase 2
+**Decision:** Before posting signed Telegram `initData`, the same-origin Mini App obtains a CSRF cookie/token from `GET /api/v1/auth/csrf/` and sends it in `X-CSRFToken` to the session-creating login endpoint. The login endpoint applies Django CSRF validation even though it otherwise allows anonymous callers.
+**Reason:** A signed Telegram payload authenticates the caller but does not by itself prevent a cross-site login request from binding a victim browser to an attacker's account. The bootstrap keeps the documented Django session model and protects against login CSRF without introducing bearer tokens.
 
 ## Open risks and ambiguities
 

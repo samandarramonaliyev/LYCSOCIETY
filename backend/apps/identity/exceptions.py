@@ -23,6 +23,11 @@ class AccountUnavailable(PermissionDenied):
     default_code = "ACCOUNT_UNAVAILABLE"
 
 
+class CsrfValidationFailed(PermissionDenied):
+    default_detail = "CSRF validation failed."
+    default_code = "CSRF_FAILED"
+
+
 class VerificationClaimFailed(APIException):
     status_code = 400
     default_detail = "We could not verify those student details. Contact an administrator if you need help."

@@ -8,7 +8,7 @@ This is the API contract and implementation guide. Phase 2 implements the API fo
 - JSON request/response bodies, UTF-8.
 - UUIDs in URL paths.
 - UTC ISO-8601 timestamps.
-- Cursor or stable page-number pagination; choose one consistently during Phase 1.
+- Cursor or stable page-number pagination; use the Phase 1-selected page-number policy consistently.
 - Search/filter parameters are validated and bounded.
 - Public student routes do not accept a client-selected `lyceum_id`.
 - All detail routes repeat authorization and scope checks.
@@ -36,19 +36,21 @@ Do not return database exception text, roster data, Telegram tokens, raw chat ID
 
 The deployed route is `/api/v1/health/`. DRF currently uses session authentication, `IsAuthenticated` as the default permission, JSON rendering, page-number pagination (20 default / 100 maximum), and a custom error envelope. The health endpoint explicitly overrides the authenticated default.
 
-Official student data is not publicly serializable. There is no public roster list, lyceum directory, profile-editing endpoint, or staff import endpoint.
+Official student data is not publicly serializable. There is no public roster list, public lyceum directory, profile-editing endpoint, or staff import endpoint. Authenticated onboarding users may read the minimal active-lyceum choice list at `/verification/lyceums/`.
 
 ## 3. Implemented: Authentication and onboarding
 
 | Method | Route | Auth | Purpose |
 |---|---|---|---|
-| `POST` | `/auth/telegram/` | None | Validate raw Telegram Mini App `initData`, create/update the application user, rotate/create a secure session, and return safe account state |
+| `GET` | `/auth/csrf/` | None | Establish a CSRF cookie and return the token required before the session-creating Telegram login request |
+| `POST` | `/auth/telegram/` | CSRF bootstrap token | Validate raw Telegram Mini App `initData`, create/update the application user, rotate/create a secure session, and return safe account state |
 | `POST` | `/auth/logout/` | Session | End the current session |
 | `GET` | `/auth/me/` | Session | Return the current account, onboarding state, safe Telegram display metadata, and own verified fields if any |
+| `GET` | `/verification/lyceums/` | Session | List only active lyceum IDs, codes, and names needed to choose an onboarding scope |
 | `GET` | `/verification/status/` | Session | Return `UNVERIFIED`, `VERIFIED`, or `SUSPENDED` without exposing the roster |
 | `POST` | `/verification/claim/` | Session, active account | Submit an exact roster-match claim using `lyceum_id`, `first_name`, `last_name`, and `group` |
 
-`POST /auth/telegram/` accepts only an `init_data` string. It does not accept a client-supplied Telegram ID or other identity fields. The backend parses the signed query string, verifies Telegram's HMAC, checks a configurable freshness window, and rejects cached replay hashes within that window. A valid request establishes a Django server-side session and returns a CSRF token for subsequent cookie-authenticated writes; no JWT or browser-stored bearer token is issued.
+Before `POST /auth/telegram/`, the same-origin Mini App calls `GET /auth/csrf/` and sends the returned token in `X-CSRFToken`; this protects the session-creating login from login CSRF. `POST /auth/telegram/` accepts only an `init_data` string. It does not accept a client-supplied Telegram ID or other identity fields. The backend parses the signed query string, verifies Telegram's HMAC, checks a configurable freshness window, and rejects cached replay hashes within that window. A valid request establishes a Django server-side session and returns a fresh CSRF token for subsequent cookie-authenticated writes; no JWT or browser-stored bearer token is issued.
 
 `POST /verification/claim/` uses client input only to locate a candidate record. It normalizes whitespace and case, then claims only one active unclaimed `StudentRecord` matching the supplied active lyceum, first name, last name, and group. Zero matches, ambiguous matches, inactive records, and already-claimed records all return the same generic verification failure, so the route does not reveal roster state. An already verified user receives `409 ALREADY_VERIFIED`; claim reset/re-verification is an administrator-only operation. This lookup is not proof that the Telegram user owns the student identity; see `docs/SECURITY.md` and `docs/DECISIONS.md`.
 
@@ -142,7 +144,7 @@ Staff endpoints must scope by explicit authorized staff capability, record audit
 
 Use stable machine-readable error codes so the Mini App can present a clear message without inferring business rules from HTTP text.
 
-Phase 2 additionally uses `TELEGRAM_INIT_DATA_INVALID`, `TELEGRAM_INIT_DATA_EXPIRED`, `TELEGRAM_INIT_DATA_REPLAYED`, and `ACCOUNT_UNAVAILABLE` for authentication failures. Roster lookup failures deliberately collapse to `VERIFICATION_FAILED`; `ALREADY_VERIFIED` is returned only for the current user's own already-complete onboarding state. DRF returns `THROTTLED` for the configured authentication or verification rate limit.
+Phase 2 additionally uses `CSRF_FAILED`, `TELEGRAM_INIT_DATA_INVALID`, `TELEGRAM_INIT_DATA_EXPIRED`, `TELEGRAM_INIT_DATA_REPLAYED`, and `ACCOUNT_UNAVAILABLE` for authentication failures. Invalid Telegram credentials return `401` with `WWW-Authenticate: Telegram`; CSRF failures and unavailable accounts return `403`. Roster lookup failures deliberately collapse to `VERIFICATION_FAILED`; `ALREADY_VERIFIED` is returned only for the current user's own already-complete onboarding state. DRF returns `THROTTLED` for the configured authentication or verification rate limit.
 
 ## 10. API test contract
 

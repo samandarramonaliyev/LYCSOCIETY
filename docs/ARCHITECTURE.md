@@ -39,7 +39,7 @@ The React application is a client of the API, not a trust boundary. Bot updates 
 
 ## 3. Current and planned repository structure
 
-The repository now contains the Phase 1 backend foundation. The structure below remains the complete target layout; only the shared, identity, lyceum, and profile modules currently exist.
+The repository now contains the Phase 2 backend foundation. The structure below remains the complete target layout; only the shared, identity, lyceum, and profile modules currently exist.
 
 ```text
 backend/
@@ -139,7 +139,7 @@ Use code review and tests to enforce the rule that any new private entity must e
 
 ## 8. Current API foundation
 
-DRF is configured with session authentication, an authenticated-by-default permission policy, JSON rendering, page-number pagination (20 default / 100 maximum), throttling, and a non-leaking error envelope. The implemented public/session endpoints are the unauthenticated database health check at `GET /api/v1/health/`, `POST /api/v1/auth/telegram/`, `POST /api/v1/auth/logout/`, `GET /api/v1/auth/me/`, `GET /api/v1/verification/status/`, and `POST /api/v1/verification/claim/`.
+DRF is configured with session authentication, an authenticated-by-default permission policy, JSON rendering, page-number pagination (20 default / 100 maximum), throttling, and a non-leaking error envelope. The implemented public/session endpoints are the unauthenticated database health check at `GET /api/v1/health/`, CSRF bootstrap at `GET /api/v1/auth/csrf/`, CSRF-protected `POST /api/v1/auth/telegram/`, `POST /api/v1/auth/logout/`, `GET /api/v1/auth/me/`, `GET /api/v1/verification/lyceums/`, `GET /api/v1/verification/status/`, and `POST /api/v1/verification/claim/`.
 
 `IsVerifiedActiveStudent` is the reusable permission for future student-facing routes. It requires an authenticated, active account with an active claimed official record and an active lyceum. Club and other student-facing product endpoints remain out of scope until later phases.
 

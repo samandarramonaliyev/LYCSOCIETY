@@ -53,9 +53,9 @@ The application intentionally has no SQLite fallback. If PostgreSQL is unavailab
 - `/admin/` — Django Admin for foundational models.
 - `/api/v1/health/` — unauthenticated database health check.
 
-- `POST /api/v1/auth/telegram/` — validate raw Telegram Mini App `initData` and establish a session.
+- `GET /api/v1/auth/csrf/` then `POST /api/v1/auth/telegram/` — obtain a CSRF token, validate raw Telegram Mini App `initData`, and establish a session.
 - `POST /api/v1/auth/logout/` and `GET /api/v1/auth/me/` — session lifecycle and safe onboarding state.
-- `GET /api/v1/verification/status/` and `POST /api/v1/verification/claim/` — student verification state and exact roster-match claim.
+- `GET /api/v1/verification/lyceums/`, `GET /api/v1/verification/status/`, and `POST /api/v1/verification/claim/` — onboarding lyceum choices, verification state, and exact roster-match claim.
 
 ## Official roster import
 
@@ -65,6 +65,6 @@ Trusted server operators may import a UTF-8 CSV only through Django's management
 python backend/manage.py import_student_records path\to\students.csv
 ```
 
-The CSV must have exactly these headers: `lyceum`, `first_name`, `last_name`, and `group`; `external_student_key` is optional. `lyceum` must be an existing lyceum code. The importer reports `Imported`, `Skipped`, and `Errors`; any malformed or conflicting row aborts the whole import without modifying roster data.
+The CSV must include these required headers: `lyceum`, `first_name`, `last_name`, and `group`; `external_student_key` is the only optional additional header. `lyceum` must be an existing lyceum code. The importer reports `Imported`, `Skipped`, and `Errors`; any malformed or conflicting row aborts the whole import without modifying roster data.
 
 Read `AGENTS.md` and the files in `docs/` before modifying the backend.
