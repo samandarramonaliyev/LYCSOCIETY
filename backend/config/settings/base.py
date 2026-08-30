@@ -113,7 +113,7 @@ CACHES = {
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 AUTH_USER_MODEL = "identity.User"
 
-TELEGRAM_BOT_TOKEN = env("TELEGRAM_BOT_TOKEN", required=True)
+TELEGRAM_BOT_TOKEN = env("TELEGRAM_BOT_TOKEN", default="")
 TELEGRAM_WEBHOOK_ENABLED = env_bool("TELEGRAM_WEBHOOK_ENABLED", default=False)
 TELEGRAM_WEBHOOK_SECRET = env("TELEGRAM_WEBHOOK_SECRET", default="")
 TELEGRAM_INIT_DATA_MAX_AGE_SECONDS = env_int(
@@ -132,6 +132,10 @@ if TELEGRAM_INIT_DATA_FUTURE_SKEW_SECONDS < 0:
 if TELEGRAM_WEBHOOK_ENABLED and not re.fullmatch(r"[A-Za-z0-9_-]{1,256}", TELEGRAM_WEBHOOK_SECRET):
     raise ImproperlyConfigured(
         "TELEGRAM_WEBHOOK_SECRET must contain 1-256 letters, numbers, underscores, or hyphens when webhook runtime is enabled."
+    )
+if TELEGRAM_WEBHOOK_ENABLED and not TELEGRAM_BOT_TOKEN:
+    raise ImproperlyConfigured(
+        "TELEGRAM_BOT_TOKEN must be set when TELEGRAM_WEBHOOK_ENABLED is true."
     )
 
 SESSION_COOKIE_HTTPONLY = True

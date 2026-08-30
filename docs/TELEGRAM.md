@@ -142,6 +142,24 @@ frame-denying. This is an implementation assumption, not a substitute for real-c
 verification: test Android, iOS, Desktop, and an ordinary browser fallback after the
 production domain is registered with Telegram; record any incompatibility before changing
 headers.
+
+## 10. Local Mini App and webhook testing
+
+For Windows development, run Django on `127.0.0.1:8000`, Vite on `5173`, and a
+Cloudflare Quick Tunnel to Vite (`cloudflared tunnel --url http://127.0.0.1:5173`).
+Set the tunnel's current exact URL as development-only `DEV_TUNNEL_ORIGIN` in root
+`.env`, then restart Django so it adds that origin to `CSRF_TRUSTED_ORIGINS`. The
+Vite proxy carries `/api`, including the webhook endpoint, to local Django; no tunnel
+hostname belongs in production settings.
+
+Use a real **non-production** bot token locally only when exercising Telegram
+authentication or Bot API actions. With no token, development Django starts for
+ordinary backend/frontend work but Telegram authentication fails closed. For an optional
+webhook test, enable `TELEGRAM_WEBHOOK_ENABLED`, configure a unique local webhook secret,
+and use the management command against the temporary tunnel URL. Update BotFather's Menu
+Button and reconfigure the webhook whenever the Quick Tunnel URL changes. Never put the
+bot token or webhook secret in a `VITE_*` variable.
+
 ## Phase 5A group integration
 
 The bot does not create groups. A club owner starts a short-lived link challenge,

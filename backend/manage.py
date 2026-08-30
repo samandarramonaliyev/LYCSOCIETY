@@ -8,7 +8,12 @@ import sys
 
 
 def main() -> None:
-    os.environ.setdefault("DJANGO_SETTINGS_MODULE", "config.settings.development")
+    default_settings = (
+        "config.settings.test"
+        if len(sys.argv) > 1 and sys.argv[1] == "test"
+        else "config.settings.development"
+    )
+    os.environ.setdefault("DJANGO_SETTINGS_MODULE", default_settings)
 
     try:
         from django.core.management import execute_from_command_line

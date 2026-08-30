@@ -10,6 +10,10 @@ from .environment import env, env_bool, env_int, env_list
 if DEBUG:  # noqa: F405
     raise ImproperlyConfigured("DJANGO_DEBUG must be false when using production settings.")
 
+# Development may start without Telegram while a developer works on non-Telegram
+# surfaces. Production always requires the real server-side credential.
+TELEGRAM_BOT_TOKEN = env("TELEGRAM_BOT_TOKEN", required=True)
+
 blocked_host_names = {"localhost", "127.0.0.1", "::1"}
 
 

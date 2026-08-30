@@ -21,6 +21,8 @@ media/
 # Environment and local tooling
 .env
 .env.*
+.env.local
+.env.*.local
 !.env.example
 .vscode/
 .idea/

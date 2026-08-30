@@ -23,6 +23,12 @@ class AccountUnavailable(PermissionDenied):
     default_code = "ACCOUNT_UNAVAILABLE"
 
 
+class TelegramAuthenticationUnavailable(APIException):
+    status_code = 503
+    default_detail = "Telegram authentication is unavailable."
+    default_code = "TELEGRAM_AUTH_UNAVAILABLE"
+
+
 class CsrfValidationFailed(PermissionDenied):
     default_detail = "CSRF validation failed."
     default_code = "CSRF_FAILED"

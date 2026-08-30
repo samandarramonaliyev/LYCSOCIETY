@@ -15,6 +15,7 @@ from django.utils import timezone
 
 from apps.identity.exceptions import (
     AccountUnavailable,
+    TelegramAuthenticationUnavailable,
     TelegramInitDataExpired,
     TelegramInitDataInvalid,
     TelegramInitDataReplayed,
@@ -48,6 +49,9 @@ def _safe_metadata_value(user_data: dict[str, object], field_name: str) -> str:
 def _parse_init_data(init_data: str) -> dict[str, str]:
     if not isinstance(init_data, str) or not init_data or len(init_data) > MAX_INIT_DATA_LENGTH:
         raise TelegramInitDataInvalid
+    if not settings.TELEGRAM_BOT_TOKEN:
+        # Do not treat an empty local configuration value as a signing secret.
+        raise TelegramAuthenticationUnavailable
 
     try:
         pairs = parse_qsl(

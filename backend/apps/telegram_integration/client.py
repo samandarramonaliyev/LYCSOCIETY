@@ -12,6 +12,8 @@ from .exceptions import TelegramAPIError
 
 class TelegramBotClient:
     def _call(self, method, payload):  # type: ignore[no-untyped-def]
+        if not settings.TELEGRAM_BOT_TOKEN:
+            raise TelegramAPIError("Telegram integration unavailable", retryable=False)
         request = Request(
             f"https://api.telegram.org/bot{settings.TELEGRAM_BOT_TOKEN}/{method}",
             data=json.dumps(payload).encode(),
