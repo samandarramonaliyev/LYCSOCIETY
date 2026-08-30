@@ -4,6 +4,7 @@ from dataclasses import dataclass
 import hashlib
 import hmac
 import json
+import logging
 import time
 from urllib.parse import parse_qsl
 
@@ -24,6 +25,7 @@ from apps.identity.models import User
 MAX_INIT_DATA_LENGTH = 8_192
 MAX_INIT_DATA_FIELDS = 32
 MAX_TELEGRAM_METADATA_LENGTH = 128
+logger = logging.getLogger(__name__)
 
 
 @dataclass(frozen=True)
@@ -124,7 +126,15 @@ def _consume_replay_hash(received_hash: str, *, auth_date: int, now: int | None 
     digest = hashlib.sha256(received_hash.encode("ascii", "ignore")).hexdigest()
     replay_key = f"identity.telegram_init_data.{digest}"
 
-    if not cache.add(replay_key, True, timeout=timeout):
+    try:
+        added = cache.add(replay_key, True, timeout=timeout)
+    except Exception as exc:  # Cache outages must fail closed without logging payloads.
+        logger.error(
+            "Telegram replay cache unavailable",
+            extra={"exception_type": type(exc).__name__},
+        )
+        raise TelegramInitDataInvalid from None
+    if not added:
         raise TelegramInitDataReplayed
 
 

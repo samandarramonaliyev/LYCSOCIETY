@@ -63,7 +63,7 @@ The schema may leave extension points, but no out-of-scope feature should add UI
 3. The backend validates the CSRF token, Telegram signature, timestamp, and Telegram user ID.
 4. The authenticated user selects a lyceum and submits their first name, last name, and group for the approved Phase 2 roster-match verification method.
 5. The backend matches the attempt to one active official student record and binds that record to the Telegram identity.
-6. The Mini App receives the safe API verification result; in-app and Telegram notification delivery remain a later Phase 5 concern.
+6. The Mini App receives the safe API verification result; in-app notification delivery is available after domain events, while Telegram delivery remains capability-dependent.
 7. Only a verified, non-suspended account may use protected product features.
 
 Phase 2 uses an exact, normalized match on lyceum, first name, last name, and group. A match is accepted only when it identifies exactly one active, unclaimed official record. This is a transitional onboarding check, not strong proof of identity: a person who knows another student's roster details could potentially claim that record. Generic failures, throttling, and administrator-only claim resets reduce disclosure and operational risk; an administrator-issued, single-use verification code remains the recommended stronger replacement. See `docs/DECISIONS.md`.

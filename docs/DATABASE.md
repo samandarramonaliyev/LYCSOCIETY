@@ -1,10 +1,10 @@
-# LYC Society Database Design (Phases 1-3)
+# LYC Society Database Design
 
 PostgreSQL is the source of truth. The examples below describe logical tables and constraints; Django migrations will define the physical schema.
 
-## 1. Phases 1–4 implementation
+## 1. Implemented MVP schema
 
-The following schema is implemented by initial migrations today:
+The following foundational schema is implemented; later sections describe the implemented club, membership, meeting, notification, Telegram, and report tables:
 
 - `identity.User` has a UUID primary key, required unique positive `telegram_user_id`, optional Telegram display metadata, `ACTIVE`/`SUSPENDED`/`DEACTIVATED` account status, staff permissions, and timestamps. `is_verified` is a read-only property derived from an active linked official record rather than a duplicate database flag.
 - `lyceums.Lyceum` has a UUID primary key, case-insensitively unique normalized code, name, optional city, active/inactive status, and timestamps.
@@ -28,9 +28,9 @@ Implemented database constraints and indexes:
 
 PostgreSQL is mandatory. The settings have no SQLite fallback, including for tests.
 
-## 2. Target data-model roadmap
+## 2. Data-model details
 
-The remaining sections retain the approved full-MVP schema for later phases. They are not a declaration that every table currently exists; the Phases 1–2 implementation section above takes precedence for the current database.
+The remaining sections describe the approved and implemented MVP model. Migrations remain the physical source of truth; future schema changes require the relevant decision and contract documents to be updated first.
 
 ### Identifier and timestamp conventions
 
@@ -115,7 +115,7 @@ Verified lyceum, group, and official identity are derived read-only properties t
 
 Join tables `user_interest_tags` and `club_interest_tags` use unique `(owner, tag)` pairs. Users and clubs may have configurable small maximum counts, e.g. 10, enforced by service validation.
 
-### Phase 4 entities
+### Club entities
 
 ### `clubs`
 
@@ -124,13 +124,11 @@ Join tables `user_interest_tags` and `club_interest_tags` use unique `(owner, ta
 | `id` | UUID primary key |
 | `lyceum_id` | Required FK; set from owner’s verified record |
 | `owner_id` | Required FK to `users` |
-| `name` | Length-limited; normalized uniqueness per lyceum |
-| `slug` | Optional URL-friendly value, unique per lyceum |
-| `short_description`, `full_description` | Validated/sanitized content |
+| `name` | Required, maximum 120 characters |
+| `short_description`, `description` | Required bounded plain-text content |
 | `category` | Controlled category choice or admin-managed taxonomy |
 | `status` | `PENDING`, `ACTIVE`, `REJECTED`, `PAUSED`, `ARCHIVED` |
 | `rejection_reason` | Required when status is `REJECTED` |
-| `reviewed_by`, `reviewed_at` | Nullable administrator decision metadata |
 | `created_at`, `updated_at` | UTC timestamps |
 
 Recommended category values: Technology, Science, Business, Sports, Arts, Languages, Academic, Social, Other.
@@ -141,7 +139,7 @@ Recommended category values: Technology, Science, Business, Sports, Arts, Langua
 |---|---|
 | `id` | UUID primary key |
 | `club_id`, `user_id` | Required FKs |
-| `role` | `OWNER`, `MEMBER`, future `MODERATOR` |
+| `role` | `OWNER`, `MEMBER` |
 | `status` | `ACTIVE` or `REMOVED` |
 | `joined_at`, `left_at` | Membership history |
 
@@ -154,12 +152,10 @@ The owner has an active membership row. This makes membership counting and futur
 | `id` | UUID primary key |
 | `club_id`, `user_id` | Required FKs |
 | `status` | `PENDING`, `ACCEPTED`, `REJECTED`, `CANCELLED` |
-| `message` | Optional length-limited request message if product retains it |
-| `decision_reason` | Optional for acceptance; expected for rejection when owner supplies one |
-| `decided_by`, `decided_at` | Decision metadata |
+| `rejection_reason` | Optional bounded reason supplied by the owner on rejection |
 | `created_at`, `updated_at` | UTC timestamps |
 
-Add a PostgreSQL partial unique constraint on `(club_id, requester_id)` where `status = 'PENDING'`. A service transaction must also reject new requests for an active membership.
+A PostgreSQL partial unique constraint enforces `(club_id, user_id)` uniqueness where `status = 'PENDING'`. A service transaction also rejects new requests for an active membership.
 
 ### `meetings`
 
@@ -171,37 +167,53 @@ Add a PostgreSQL partial unique constraint on `(club_id, requester_id)` where `s
 | `starts_at` | Required UTC instant; UI may collect local date/time and timezone |
 | `location` | Optional text |
 | `description` | Optional length-limited text |
-| `status` | `SCHEDULED`, `CANCELLED`, optionally `COMPLETED` |
+| `status` | `SCHEDULED`, `CANCELLED` |
 | `created_at`, `updated_at` | UTC timestamps |
 
-### `meeting_attendance`
+### `meeting_rsvps`
 
-Optional but supported in the model for simple responses. Unique `(meeting_id, user_id)` with status `GOING`, `MAYBE`, or `NOT_GOING`. The service accepts responses only from current active members and the owner.
+Unique `(meeting_id, user_id)` with response `GOING` or `NOT_GOING`. The service accepts responses only from current active members, rejects cancelled meetings, and updates the row atomically.
 
 ### `announcements`
 
 | Field | Notes |
 |---|---|
 | `id` | UUID primary key |
-| `club_id`, `author_id` | Required FKs |
+| `club_id`, `created_by` | Required FKs |
 | `title`, `message` | Required, length-limited, sanitized |
 | `created_at`, `updated_at` | UTC timestamps |
 
 ### `telegram_groups`
 
-One active integration per club in MVP.
+At most one integration row per club and one club per Telegram chat in MVP.
 
 | Field | Notes |
 |---|---|
 | `id` | UUID primary key |
 | `club_id` | Unique FK to `clubs` |
-| `chat_id` | Required unique Telegram chat ID; never taken from an ordinary client request |
-| `chat_type`, `title` | Last verified metadata |
-| `invite_link_encrypted` | Bot-generated join-request link; encrypt at application layer and never return to non-members |
-| `link_creates_join_request` | Must be true for the gated flow |
-| `bot_admin_verified`, `can_invite_users`, `can_restrict_members` | Capability snapshot |
-| `connected_by`, `last_checked_at` | Audit/health metadata |
-| `status` | `CONNECTED`, `DEGRADED`, `DISCONNECTED` |
+| `telegram_chat_id` | Required unique Telegram chat ID; never taken from an ordinary client request |
+| `telegram_chat_title` | Last verified display metadata |
+| `bot_can_invite_members`, `bot_can_send_messages` | Capability snapshot |
+| `linked_at`, `unlinked_at` | Link lifecycle timestamps |
+| `status` | `PENDING`, `LINKED`, `UNLINKED` |
+
+Invite links are not persisted. The adapter requests a ten-minute Telegram link with `creates_join_request=true` and returns it only to an authorized active member.
+
+### `telegram_link_challenges`
+
+Each linking challenge is single-use and is bound to both the active club and its
+current owner. It stores only a SHA-256 token hash, an expiry timestamp, an optional
+consumption timestamp, and the expected owner foreign key. The raw setup token is
+returned once to the owner and is never stored or logged.
+
+### `telegram_webhook_updates`
+
+Inbound Telegram updates are represented by a minimal persistent idempotency row:
+the unique Telegram `update_id`, a processed timestamp, and no raw update payload.
+This database uniqueness is shared by all Gunicorn workers and prevents duplicate
+delivery from repeating group links or join-request decisions. A failed transient
+provider call leaves the row unprocessed so Telegram may retry; permanently invalid
+or unsupported updates are marked processed without retaining their contents.
 
 ### `notifications`
 
@@ -211,12 +223,12 @@ One active integration per club in MVP.
 | `recipient_id` | Required FK to `users` |
 | `type` | Controlled type such as `VERIFICATION_RESULT`, `CLUB_REVIEW`, `JOIN_REQUEST`, `JOIN_DECISION`, `ANNOUNCEMENT`, `MEETING`, `MEETING_REMINDER` |
 | `title`, `body` | Rendered notification text without secrets |
-| `payload` | Small JSON object containing opaque object IDs, not sensitive roster data |
-| `read_at` | Null means unread |
+| `is_read` | Recipient-owned read state |
+| `delivery_status`, `delivery_attempts`, `delivered_at`, `last_delivery_error` | Bounded delivery state; only a safe exception category may be stored |
 | `dedupe_key` | Optional unique event key for idempotency |
-| `created_at` | UTC timestamp |
+| `created_at`, `updated_at` | UTC timestamps |
 
-`notification_preferences` stores per-user, per-type or grouped-channel choices: in-app enabled and Telegram enabled. A small `notification_deliveries`/outbox table stores channel, status, attempts, provider message ID, last error, and next-attempt time.
+`notification_preferences` is one-to-one with the user and stores the editable `club_announcements`, `meeting_notifications`, and `meeting_reminders` flags. Security/system authorization decisions do not depend on these preferences.
 
 ### `reports`
 
@@ -227,48 +239,52 @@ Use explicit nullable typed targets to retain database referential integrity for
 | `id` | UUID primary key |
 | `reporter_id` | Required verified user |
 | `club_id` or `announcement_id` | Exactly one target, enforced with a check constraint |
-| `reason` | `SPAM`, `FAKE_INFORMATION`, `HARASSMENT`, `INAPPROPRIATE_CONTENT`, `OTHER` |
+| `reason` | `SPAM`, `FAKE_INFORMATION`, `HARASSMENT`, `INAPPROPRIATE`, `OTHER` |
 | `details` | Optional length-limited text |
-| `status` | `OPEN`, `RESOLVED`, `DISMISSED` |
-| `resolved_by`, `resolution_note`, `resolved_at` | Staff decision metadata |
+| `status` | `OPEN`, `REVIEWED`, `ACTIONED`, `DISMISSED` |
+| `reviewed_by`, `reviewed_at` | Staff decision metadata |
 | `created_at`, `updated_at` | UTC timestamps |
 
 ### `audit_events`
 
 Append-only staff/security audit records: actor, action, object type/ID, lyceum context, safe metadata, request correlation ID, and timestamp. Never write raw verification codes, `initData`, invite links, or bot tokens.
 
-### Planned constraints and indexes
+### Implemented constraints and indexes
 
 - `users.telegram_user_id` unique.
 - `student_records.verified_user_id` unique and nullable.
 - `clubs.owner_id` unique: one club per user.
-- Case-insensitive normalized club name unique per lyceum if the product wants name uniqueness; at minimum index `(lyceum_id, status, name)` for discovery.
 - `memberships` unique active `(club_id, user_id)`.
+- one active owner membership per club and status/`left_at` consistency.
 - `join_requests` partial unique pending `(club_id, requester_id)`.
+- `meeting_rsvps` unique `(meeting_id, user_id)`.
 - `telegram_groups.club_id` and `telegram_groups.chat_id` unique.
-- `reports` check: exactly one typed target is non-null.
+- `telegram_link_challenges` are bound to a club and expected owner; token hashes are unique.
+- `telegram_webhook_updates.update_id` is unique.
+- `reports` check: exactly one typed target is non-null, plus one open report per reporter and typed target.
 - `clubs` check: rejected status requires non-empty rejection reason.
 - Foreign keys use restrictive or protective deletion behavior for student, club, and audit history.
 - Index discovery by `(lyceum_id, status, category)`, tags, `created_at`, upcoming `meetings.starts_at`, open reports, notification recipient/read state, and outbox status/next-attempt time.
 
 The maximum-three-memberships rule spans rows and cannot be represented by a normal row-level unique constraint. Enforce it in a transaction that locks the user row before counting active memberships. If a deployment requires protection against writes outside Django, add and test a PostgreSQL trigger after measuring the operational cost; application services remain the primary write path.
 
-### Planned transaction boundaries
+### Implemented transaction boundaries
 
 - Verification binding: lock the roster row and user identity; check both are unbound; bind atomically.
 - Club creation: lock the user; check no owned club and membership count; insert club and owner membership together.
 - Join acceptance: lock the user and pending request; re-check club, lyceum, membership count, and request status; create membership and mark request accepted in one transaction.
-- Club approval/rejection: lock the club; re-check current status; record decision and enqueue notification after commit.
+- Club moderation: lock the club; re-check the current status; change it through controlled actions and create the recipient notification.
 - Membership removal: mark membership removed and enqueue access-revocation/delivery work after commit.
 
-### Planned roster import and updates
+### Roster import and updates
 
-Imports are administrator-only, idempotent by the official stable key where available, and produce a reconciliation report. A record becoming inactive prevents new verification and new actions but does not silently rewrite historical club or membership records. If the administration changes a student’s group/name, future reads use the current official record; the audit trail records the change.
+Imports are administrator-only, idempotent by the official stable key where available, and produce a reconciliation report. A record becoming inactive prevents new verification and new actions but does not silently rewrite historical club or membership records. If the administration changes a student's group/name after resetting a claim, future reads use the current official record and Django Admin retains its normal change history.
 
 Do not import or store fields not needed for verification. In particular, age/date of birth is not required by this product.
-Phase 5A adds `ClubTelegramGroup`, one-time `TelegramLinkChallenge`, `Notification`,
-and `NotificationPreference`. Group chat IDs are unique and notification dedupe keys
-are unique when supplied.
+Phase 5A adds `ClubTelegramGroup`, owner-bound one-time `TelegramLinkChallenge`,
+`Notification`, and `NotificationPreference`. Phase 8B adds persistent
+`TelegramWebhookUpdate` deduplication for the inbound webhook. Group chat IDs are
+unique and notification dedupe keys are unique when supplied.
 Phase 5B adds Meeting, MeetingRSVP, and Announcement entities. Meetings belong to
 active clubs, are visible only to active members, and use scheduled/cancelled
 states. Reminder notifications are deduplicated per meeting/member.

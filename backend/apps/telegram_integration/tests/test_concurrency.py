@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from threading import Barrier, Thread
 
-from django.db import close_old_connections
+from django.db import close_old_connections, connections
 from django.test import TransactionTestCase
 from django.utils import timezone
 
@@ -55,12 +55,13 @@ class TelegramGroupConcurrencyTests(TransactionTestCase):
                     token=tokens[index],
                     telegram_chat_id=-1_009_999,
                     can_invite_members=True,
+                    owner_telegram_user_id=owners[index].telegram_user_id,
                 )
                 outcomes.append("success")
             except LinkChallengeError:
                 outcomes.append("rejected")
             finally:
-                close_old_connections()
+                connections.close_all()
 
         threads = [Thread(target=link, args=(index,)) for index in range(2)]
         for thread in threads:

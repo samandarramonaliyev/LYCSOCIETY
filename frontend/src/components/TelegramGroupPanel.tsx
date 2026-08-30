@@ -66,7 +66,7 @@ export function TelegramGroupPanel({ clubId, owner = false }: { clubId: string; 
             <Button className="mt-3" onClick={startLink}>Generate link challenge</Button>
             {challenge && (
               <p className="mt-3 text-sm">
-                Send <code>/connect {challenge}</code> in the private group within ten minutes.
+                Add the bot to an existing private group as an administrator with permission to invite users, then send <code>/connect {challenge}</code> there within ten minutes.
               </p>
             )}
           </>

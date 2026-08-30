@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from threading import Barrier, Thread
 
-from django.db import close_old_connections
+from django.db import close_old_connections, connections
 from django.test import TransactionTestCase
 from django.utils import timezone
 
@@ -74,7 +74,7 @@ class ClubConcurrencyTests(TransactionTestCase):
                 barrier.wait(timeout=10)
                 outcomes.append(worker(index))
             finally:
-                close_old_connections()
+                connections.close_all()
 
         threads = [Thread(target=wrapped, args=(index,)) for index in range(2)]
         for thread in threads:

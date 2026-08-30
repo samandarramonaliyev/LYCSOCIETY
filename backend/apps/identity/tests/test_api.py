@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import time
+from unittest.mock import patch
 from urllib.parse import parse_qs, urlencode
 
 from django.core.cache import cache
@@ -58,6 +59,24 @@ class TelegramAuthenticationApiTests(APITestCase):
         me_response = self.client.get("/api/v1/auth/me/", secure=True)
         self.assertEqual(me_response.status_code, 200)
         self.assertIsNone(me_response.json()["verified_student"])
+
+    @patch("apps.identity.services.telegram.cache.add", side_effect=RuntimeError("cache unavailable"))
+    @patch("apps.identity.services.telegram.logger")
+    def test_replay_cache_failure_fails_closed_without_payload_logging(self, logger, cache_add) -> None:  # type: ignore[no-untyped-def]
+        init_data = build_signed_init_data(
+            telegram_user_id=610_000_010,
+            auth_date=int(time.time()),
+        )
+
+        response = self.authenticate(init_data)
+
+        self.assertEqual(response.status_code, 401)
+        self.assertEqual(response.json()["error"]["code"], "TELEGRAM_INIT_DATA_INVALID")
+        logger.error.assert_called_once_with(
+            "Telegram replay cache unavailable",
+            extra={"exception_type": "RuntimeError"},
+        )
+        cache_add.assert_called_once()
 
     def test_invalid_signature_is_rejected_without_creating_an_account(self) -> None:
         init_data = build_signed_init_data(telegram_user_id=610_000_002)

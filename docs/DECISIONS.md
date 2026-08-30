@@ -217,3 +217,38 @@ authorized member and is never persisted or logged by LYC Society.
 **Reason:** A one-use direct-admission link can be forwarded and bypass the
 application membership decision. Join-request gating fails closed and preserves
 the product's authoritative membership check; the short expiry limits sharing risk.
+
+### D-030 — Phase 8B pilot deployment topology and external gates
+
+**Status:** Accepted for Phase 8B release preparation
+
+**Decision:** Use one Django/Gunicorn backend behind an HTTPS reverse proxy, serve the
+React build from the same public origin, use managed PostgreSQL with TLS and backups,
+and use a shared managed Redis-compatible cache for replay/throttle state. Production
+settings require exact hosts/origins, secure cookies, environment-only secrets, and
+staged HSTS. The Django Telegram webhook handles only `message` linking commands and
+`chat_join_request` updates, uses a production-only secret header, and stores unique
+update IDs in PostgreSQL. Keep Telegram group approval disabled until the endpoint is
+configured and passes non-production client/permission tests.
+
+**Reason:** Same-origin serving reduces cookie/CSRF/CORS complexity while shared cache
+is required for multi-worker security state. A database dedupe row is additionally
+needed for inbound updates because each Gunicorn worker must observe the same delivery
+state. Restricting subscriptions to the two implemented update types minimizes exposed
+input surface and keeps group authorization in the established domain services.
+
+### D-031 — Phase 8B inbound webhook policy
+
+**Status:** Accepted for Phase 8B
+
+**Decision:** Configure Telegram with exactly `message` and `chat_join_request`.
+`message` is used only for an owner-bound `/connect <token>` command in a group or
+supergroup; `chat_join_request` is approved only after a current linked-group, active
+club, verified-active account, and active membership check. All other updates are
+ignored. The bot must be an administrator with `can_invite_users` when linking;
+group-broadcast capability is not required because MVP notifications are direct.
+
+**Failure policy:** A transient Bot API failure returns 503 so Telegram can retry.
+Unsupported, malformed-but-safe, invalid challenge, unauthorized, or permanent Bot API
+failure returns 2xx after durable idempotency handling, preventing infinite retries.
+No raw update payload, token, secret, invite link, or Bot API response body is persisted.

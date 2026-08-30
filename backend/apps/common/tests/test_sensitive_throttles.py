@@ -18,6 +18,11 @@ from apps.clubs.models import (
 from apps.identity.models import User
 from apps.lyceums.models import Lyceum, StudentRecord
 from apps.telegram_integration.models import ClubTelegramGroup
+from apps.common.throttling import (
+    JoinRequestThrottle,
+    ReportSubmissionThrottle,
+    TelegramInviteThrottle,
+)
 
 
 THROTTLED_REST_FRAMEWORK = {
@@ -71,7 +76,8 @@ class SensitiveActionThrottleTests(TestCase):
         )
         return club
 
-    def test_join_request_submission_is_user_throttled(self) -> None:
+    @patch.object(JoinRequestThrottle, "get_rate", return_value="1/hour")
+    def test_join_request_submission_is_user_throttled(self, get_rate) -> None:  # type: ignore[no-untyped-def]
         other_owner = self.make_user(889_003, "Other Owner")
         other_club = self.make_club(other_owner, "Second Club")
         self.client.force_login(self.student)
@@ -90,7 +96,8 @@ class SensitiveActionThrottleTests(TestCase):
         self.assertEqual(first.status_code, 201)
         self.assertEqual(second.status_code, 429)
 
-    def test_report_submission_is_user_throttled(self) -> None:
+    @patch.object(ReportSubmissionThrottle, "get_rate", return_value="1/hour")
+    def test_report_submission_is_user_throttled(self, get_rate) -> None:  # type: ignore[no-untyped-def]
         self.client.force_login(self.student)
         payload = {
             "target_type": "CLUB",
@@ -102,8 +109,9 @@ class SensitiveActionThrottleTests(TestCase):
         self.assertEqual(first.status_code, 201)
         self.assertEqual(second.status_code, 429)
 
+    @patch.object(TelegramInviteThrottle, "get_rate", return_value="1/hour")
     @patch("apps.telegram_integration.views.TelegramBotClient")
-    def test_invite_generation_is_user_throttled(self, client_class) -> None:  # type: ignore[no-untyped-def]
+    def test_invite_generation_is_user_throttled(self, client_class, get_rate) -> None:  # type: ignore[no-untyped-def]
         ClubTelegramGroup.objects.create(
             club=self.club,
             telegram_chat_id=-1_008_890,

@@ -24,30 +24,41 @@ class TelegramIntegrationTests(TestCase):
     def test_link_requires_bot_invite_permission(self):
         token = start_link(club_id=self.club.pk, user=self.owner)
         with self.assertRaises(LinkChallengeError):
-            confirm_link(token=token, telegram_chat_id=-1001, can_invite_members=False)
+            confirm_link(token=token, telegram_chat_id=-1001, can_invite_members=False, owner_telegram_user_id=self.owner.telegram_user_id)
         self.assertFalse(ClubTelegramGroup.objects.exists())
 
     def test_owner_can_link_and_unlink_only_their_group(self):
         token = start_link(club_id=self.club.pk, user=self.owner)
-        group = confirm_link(token=token, telegram_chat_id=-1002, title="Test group", can_invite_members=True)
+        group = confirm_link(token=token, telegram_chat_id=-1002, title="Test group", can_invite_members=True, owner_telegram_user_id=self.owner.telegram_user_id)
         self.assertEqual(group.telegram_chat_id, -1002)
+
+    def test_wrong_telegram_owner_cannot_complete_link(self):
+        token = start_link(club_id=self.club.pk, user=self.owner)
+        with self.assertRaises(LinkChallengeError):
+            confirm_link(
+                token=token,
+                telegram_chat_id=-1012,
+                can_invite_members=True,
+                owner_telegram_user_id=900_099,
+            )
+        self.assertFalse(ClubTelegramGroup.objects.exists())
 
     def test_duplicate_chat_linkage_is_rejected(self):
         token = start_link(club_id=self.club.pk, user=self.owner)
-        confirm_link(token=token, telegram_chat_id=-1003, can_invite_members=True)
+        confirm_link(token=token, telegram_chat_id=-1003, can_invite_members=True, owner_telegram_user_id=self.owner.telegram_user_id)
         other = User.objects.create_user(telegram_user_id=900011)
         StudentRecord.objects.create(lyceum=self.lyceum, first_name="C", last_name="D", group_name="10-B", verified_user=other, verified_at=timezone.now())
         other_club = Club.objects.create(lyceum=self.lyceum, owner=other, name="Other", short_description="s", description="d", category="OTHER", status=ClubStatus.ACTIVE)
         token = start_link(club_id=other_club.pk, user=other)
         with self.assertRaises(LinkChallengeError):
-            confirm_link(token=token, telegram_chat_id=-1003, can_invite_members=True)
+            confirm_link(token=token, telegram_chat_id=-1003, can_invite_members=True, owner_telegram_user_id=other.telegram_user_id)
 
     def test_invite_uses_mocked_client_and_member_scope(self):
         ClubMembership.objects.create(club=self.club, user=self.owner, role=MembershipRole.OWNER, status=MembershipStatus.ACTIVE)
         client = Mock(); client.create_invite_link.return_value = {"invite_link": "https://t.me/+one-use"}
         from apps.telegram_integration.services import create_member_invite
         token = start_link(club_id=self.club.pk, user=self.owner)
-        confirm_link(token=token, telegram_chat_id=-1004, can_invite_members=True)
+        confirm_link(token=token, telegram_chat_id=-1004, can_invite_members=True, owner_telegram_user_id=self.owner.telegram_user_id)
         result = create_member_invite(club_id=self.club.pk, user=self.owner, client=client)
         self.assertEqual(result, "https://t.me/+one-use")
         kwargs = client.create_invite_link.call_args.kwargs
@@ -67,11 +78,11 @@ class TelegramIntegrationTests(TestCase):
         client.create_invite_link.assert_not_called()
 
     def test_cross_lyceum_owner_cannot_manage_foreign_club_group(self):
-        from rest_framework.exceptions import PermissionDenied
+        from rest_framework.exceptions import NotFound
         other_lyceum = Lyceum.objects.create(name="Foreign Lyceum", code="tg-foreign")
         foreign = User.objects.create_user(telegram_user_id=900013)
         StudentRecord.objects.create(lyceum=other_lyceum, first_name="G", last_name="H", group_name="10-D", verified_user=foreign, verified_at=timezone.now())
         foreign_club = Club.objects.create(lyceum=other_lyceum, owner=foreign, name="Foreign", short_description="s", description="d", category="OTHER", status=ClubStatus.ACTIVE)
-        with self.assertRaises(PermissionDenied):
+        with self.assertRaises(NotFound):
             start_link(club_id=foreign_club.pk, user=self.owner)
 

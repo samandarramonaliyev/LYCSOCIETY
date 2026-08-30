@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from django.contrib import admin
+from django.contrib.admin.models import CHANGE, LogEntry
 from django.contrib import messages
 from django.db import transaction
 from django.utils import timezone
@@ -109,12 +110,22 @@ class StudentRecordAdmin(admin.ModelAdmin):
 
     @admin.action(description="Reset verification claims for selected official records")
     def reset_verification_claims(self, request, queryset) -> None:  # type: ignore[no-untyped-def]
+        record_ids = list(
+            queryset.filter(verified_user__isnull=False).values_list("pk", flat=True)
+        )
         with transaction.atomic():
             reset_count = queryset.filter(verified_user__isnull=False).update(
                 verified_user=None,
                 verified_at=None,
                 updated_at=timezone.now(),
             )
+            if record_ids:
+                LogEntry.objects.log_actions(
+                    request.user.pk,
+                    StudentRecord.objects.filter(pk__in=record_ids),
+                    CHANGE,
+                    change_message="Reset verification claim.",
+                )
         self.message_user(
             request,
             f"Reset {reset_count} verification claim(s).",

@@ -1,6 +1,6 @@
 # LYC Society Development Plan
 
-Phases 0–7 are complete. **Phase 8A final hardening is the active implementation phase.** It covers security audit, adversarial and concurrency tests, dependency review, cleanup, and CI; deployment remains reserved for Phase 8B.
+Phases 0–7 and **Phase 8A final hardening are complete.** Phase 8A covers security audit, adversarial and concurrency tests, dependency review, cleanup, and CI; deployment remains reserved for Phase 8B.
 
 ## Phase 0 — Documentation baseline (complete for this task)
 
@@ -67,7 +67,7 @@ Exit criteria:
 - Client-supplied scope/identity fields are ignored or rejected.
 - Sensitive roster fields are absent from ordinary responses.
 
-## Phase 4 — Clubs + approval + join requests + memberships (current)
+## Phase 4 — Clubs + approval + join requests + memberships (complete)
 
 Deliverables:
 
@@ -130,21 +130,32 @@ Exit criteria:
 - Sensitive roster fields are limited to the necessary staff roles.
 - Every moderation action is reversible where practical and preserves history.
 
-## Phase 8 — Testing + security audit + production readiness
+## Phase 8A — Final hardening (complete)
 
 Deliverables:
 
-- Full unit/API/integration/security test suite.
-- Migration and rollback rehearsal, backup restore test, load smoke test, and monitoring.
-- Manual authorization/IDOR review, dependency scan, secret scan, and Telegram permission audit.
-- Privacy/retention review with the lyceum administration.
-- Production runbook, incident response, and support procedures.
+- Adversarial authentication, CSRF, authorization, IDOR, mass-assignment, and tenant-isolation coverage.
+- PostgreSQL concurrency tests for roster claims, club creation, membership limits, duplicate join requests, and Telegram chat uniqueness.
+- Materially expanded React/Vitest coverage for authentication and critical student/owner workflows.
+- Dependency and secret scans, logging/privacy review, focused cleanup, and backend/frontend CI using PostgreSQL and fake secrets.
+- Security guarantees, residual-risk threat model, and Phase 8B deployment prerequisites.
 
 Exit criteria:
 
-- Definition-of-done checks in `PRODUCT_SPEC.md` pass.
-- No critical/high security findings remain without an explicit risk acceptance.
-- Telegram delivery, outbox backlog, auth failures, and database health are observable.
+- All local checks, PostgreSQL-backed tests, frontend tests, lint, build, and dependency audits pass.
+- No critical/high implementation finding remains without explicit risk acceptance.
+- Known deployment and product limitations are documented without weakening controls.
+
+## Phase 8B — Production readiness and deployment (prepared; external gates outstanding)
+
+Deliverables include deployment infrastructure, production origins/headers and shared cache, backup/restore rehearsal, monitoring, runbooks, incident response, privacy/retention approval, Telegram capability verification, and controlled release. Phase 8A must not perform these tasks or deploy the application.
+
+The Phase 8B preparation artifacts are now present in `docs/DEPLOYMENT.md`,
+`docs/PRIVACY_RETENTION.md`, `docs/INCIDENT_RESPONSE.md`, and `docs/SMOKE_TEST.md`, with
+production settings and a conservative Gunicorn configuration. The inbound Django webhook,
+its persistent update dedupe, and safe configuration/status commands are implemented. External
+provisioning, secret rotation/configuration, and real Telegram client/group testing remain
+operator work before group approval is enabled.
 
 ## Cross-phase engineering gates
 

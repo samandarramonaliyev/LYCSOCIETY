@@ -1,9 +1,9 @@
 from __future__ import annotations
 
-from rest_framework.throttling import SimpleRateThrottle
+from apps.common.throttling import SafeSimpleRateThrottle
 
 
-class TelegramAuthenticationThrottle(SimpleRateThrottle):
+class TelegramAuthenticationThrottle(SafeSimpleRateThrottle):
     """Bound unauthenticated Telegram-init attempts by client address."""
 
     scope = "telegram_auth"
@@ -13,7 +13,7 @@ class TelegramAuthenticationThrottle(SimpleRateThrottle):
         return self.cache_format % {"scope": self.scope, "ident": ident}
 
 
-class StudentVerificationThrottle(SimpleRateThrottle):
+class StudentVerificationThrottle(SafeSimpleRateThrottle):
     """Bound roster-match attempts without using roster data as a throttle key."""
 
     scope = "student_verification"

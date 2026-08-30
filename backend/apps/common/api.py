@@ -39,7 +39,12 @@ def exception_handler(exc: Exception, context: dict[str, Any]) -> Response:
 
     response = drf_exception_handler(exc, context)
     if response is None:
-        logger.exception("Unhandled API exception", exc_info=exc)
+        # Do not interpolate exception text or traceback into the default log. Database
+        # and provider exceptions can contain roster input, URLs, or credentials.
+        logger.error(
+            "Unhandled API exception",
+            extra={"exception_type": type(exc).__name__},
+        )
         return Response(
             {
                 "error": {

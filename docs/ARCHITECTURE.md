@@ -1,6 +1,6 @@
 # LYC Society Architecture
 
-**Implementation status:** Phase 4 extends the Django/PostgreSQL foundation with the `clubs` domain module. It adds scoped clubs, moderation, memberships, and join requests. Telegram groups, meetings, announcements, notifications, and reports remain future boundaries.
+**Implementation status:** Phases 0–7 implement the complete MVP as a Django/PostgreSQL modular monolith with a React Mini App. Phase 8A hardens the existing authentication, tenant isolation, domain services, Telegram adapter, reporting, tests, and CI; deployment remains Phase 8B.
 
 ## 1. Recommended architecture
 
@@ -37,9 +37,9 @@ Django/worker ── HTTPS ── Telegram Bot API
 
 The React application is a client of the API, not a trust boundary. Bot updates are also untrusted input until the adapter validates their shape and the domain service rechecks authorization.
 
-## 3. Current and planned repository structure
+## 3. Repository structure
 
-The repository now contains the Phase 4 backend foundation. The structure below remains the complete target layout; shared, identity, lyceum, profile, and clubs modules currently exist.
+The repository contains the implemented MVP boundaries below. They share one database but retain separate services, serializers, and adapters.
 
 ```text
 backend/
@@ -105,7 +105,7 @@ Own editable profile fields and structured interest tags. Verified fields are re
 
 Lyceum isolation is a shared service boundary in `lyceums.services.scoping`. `get_verified_lyceum(user)` derives the active tenant from the user's official record; `scope_queryset_to_verified_lyceum(...)` applies that value to future querysets. Neither helper accepts a client-supplied lyceum identifier.
 
-### Implemented in Phase 4: Clubs
+### Clubs
 
 Own club lifecycle, ownership, memberships, join requests, and club-scoped authorization. Club creation and join acceptance lock the relevant user rows; discovery and detail querysets derive lyceum from the verified student record.
 
@@ -117,7 +117,7 @@ Own notification preferences, in-app notification records, delivery outbox recor
 
 Own reports, report resolution, suspensions, archive actions, and the audit trail for privileged decisions.
 
-### Planned: Telegram integration
+### Telegram integration
 
 Own raw update parsing, webhook verification, Bot API calls, callback/action mapping, group-linking setup, and group join-request handling. It stores Telegram-specific identifiers in integration tables and calls domain services for authorization.
 
@@ -153,19 +153,23 @@ Use an outbox row written in the same transaction as the domain change. A worker
 
 ## 10. Deployment baseline
 
-For MVP, deploy:
+For MVP, deploy the single-service topology and runbook in `docs/DEPLOYMENT.md`:
 
 - Django ASGI/WSGI application behind HTTPS and a reverse proxy.
 - PostgreSQL with automated backups and restricted network access.
 - Static frontend assets served from the same origin or a tightly configured HTTPS origin.
-- Telegram webhook endpoint with a secret path/token; long polling is acceptable only for local development.
+- The Django application exposes a secret-validated HTTPS webhook for the only required
+  inbound updates: `message` for group-link commands and `chat_join_request` for
+  approved-member access. It persists update IDs for cross-worker idempotency and
+  invokes the existing group-link/invite domain services; it does not duplicate club
+  authorization rules.
 - A worker/cron process using the same backend code for outbox delivery and scheduled meeting reminders.
 
-Use environment/secret-manager configuration for database credentials, Django secret key, Telegram bot token, webhook secret, encryption key, allowed origins, and operational settings.
+Use environment/secret-manager configuration for database credentials, Django secret key, Telegram bot token, webhook secret when the webhook is enabled, allowed origins, cache URL, and operational settings. Never put these values in frontend build variables.
 
 ## 11. Explicit non-goals
 
-Do not add WebSockets, Redis, Celery, Elasticsearch, a separate identity provider, a recommendation service, or a second frontend until measured requirements justify them and the decision is recorded.
+Do not add WebSockets, Redis/Celery as a job broker, Elasticsearch, a separate identity provider, a recommendation service, or a second frontend until measured requirements justify them and the decision is recorded. A managed Redis-compatible cache is an approved Phase 8B operational dependency for replay/throttle state.
 Phase 5A introduces separate `telegram_integration` and `notifications` modules.
 Core club services create durable notifications; a management command delivers them
 through the focused Telegram client, keeping external failures outside transactions.

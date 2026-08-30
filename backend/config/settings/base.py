@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from pathlib import Path
+import re
 
 from django.core.exceptions import ImproperlyConfigured
 
@@ -100,10 +101,21 @@ STATIC_ROOT = BASE_DIR / "staticfiles"
 MEDIA_URL = "media/"
 MEDIA_ROOT = BASE_DIR / "media"
 
+# Development/test processes use a process-local cache. Production overrides this
+# with a shared Redis-compatible backend and refuses to start without it.
+CACHES = {
+    "default": {
+        "BACKEND": "django.core.cache.backends.locmem.LocMemCache",
+        "LOCATION": "lyc-society-development",
+    }
+}
+
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 AUTH_USER_MODEL = "identity.User"
 
 TELEGRAM_BOT_TOKEN = env("TELEGRAM_BOT_TOKEN", required=True)
+TELEGRAM_WEBHOOK_ENABLED = env_bool("TELEGRAM_WEBHOOK_ENABLED", default=False)
+TELEGRAM_WEBHOOK_SECRET = env("TELEGRAM_WEBHOOK_SECRET", default="")
 TELEGRAM_INIT_DATA_MAX_AGE_SECONDS = env_int(
     "TELEGRAM_INIT_DATA_MAX_AGE_SECONDS",
     default=300,
@@ -117,6 +129,10 @@ if TELEGRAM_INIT_DATA_MAX_AGE_SECONDS <= 0:
     raise ImproperlyConfigured("TELEGRAM_INIT_DATA_MAX_AGE_SECONDS must be positive.")
 if TELEGRAM_INIT_DATA_FUTURE_SKEW_SECONDS < 0:
     raise ImproperlyConfigured("TELEGRAM_INIT_DATA_FUTURE_SKEW_SECONDS cannot be negative.")
+if TELEGRAM_WEBHOOK_ENABLED and not re.fullmatch(r"[A-Za-z0-9_-]{1,256}", TELEGRAM_WEBHOOK_SECRET):
+    raise ImproperlyConfigured(
+        "TELEGRAM_WEBHOOK_SECRET must contain 1-256 letters, numbers, underscores, or hyphens when webhook runtime is enabled."
+    )
 
 SESSION_COOKIE_HTTPONLY = True
 SESSION_COOKIE_SECURE = not DEBUG

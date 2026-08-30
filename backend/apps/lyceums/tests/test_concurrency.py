@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from threading import Barrier, Thread
 
-from django.db import close_old_connections
+from django.db import close_old_connections, connections
 from django.test import TransactionTestCase
 
 from apps.identity.exceptions import VerificationClaimFailed
@@ -45,7 +45,7 @@ class RosterClaimConcurrencyTests(TransactionTestCase):
             except VerificationClaimFailed:
                 outcomes.append("rejected")
             finally:
-                close_old_connections()
+                connections.close_all()
 
         threads = [Thread(target=claim, args=(user.pk,)) for user in users]
         for thread in threads:

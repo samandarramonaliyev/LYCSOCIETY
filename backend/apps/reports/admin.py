@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 from django.contrib import admin
+from django.contrib.admin.models import CHANGE, LogEntry
+from django.db import transaction
 from django.utils import timezone
 
 from .models import Report
@@ -27,12 +29,21 @@ class ReportAdmin(admin.ModelAdmin):
     actions = ("mark_reviewed", "mark_actioned", "dismiss")
 
     def _mark(self, request, queryset, status_value) -> None:  # type: ignore[no-untyped-def]
-        queryset.update(
-            status=status_value,
-            reviewed_by=request.user,
-            reviewed_at=timezone.now(),
-            updated_at=timezone.now(),
-        )
+        with transaction.atomic():
+            report_ids = list(queryset.values_list("pk", flat=True))
+            queryset.update(
+                status=status_value,
+                reviewed_by=request.user,
+                reviewed_at=timezone.now(),
+                updated_at=timezone.now(),
+            )
+            if report_ids:
+                LogEntry.objects.log_actions(
+                    request.user.pk,
+                    Report.objects.filter(pk__in=report_ids),
+                    CHANGE,
+                    change_message=f"Report status changed to {status_value}.",
+                )
 
     @admin.action(description="Mark selected reports reviewed")
     def mark_reviewed(self, request, queryset) -> None:  # type: ignore[no-untyped-def]

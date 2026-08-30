@@ -2,9 +2,9 @@
 
 Security is a product requirement, not a frontend feature. The backend and database enforce all identity, lyceum, role, and state rules.
 
-## Phases 1–4 implementation status
+## Phase 8A implementation status
 
-The current implementation has environment-only secrets, PostgreSQL-only settings, a unique positive Telegram numeric identity, separate sensitive roster records, separate editable profiles, database constraints, staff-only Django Admin, and no public roster API. Phase 2 adds Telegram validation and verification; Phase 3 adds controlled profiles and trusted lyceum scoping; Phase 4 adds scoped clubs, transactional membership limits, join-request state transitions, and staff moderation. Later product integrations remain out of scope.
+The complete MVP through Phase 7 is implemented. Phase 8A hardens it with adversarial Telegram authentication tests, CSRF verb coverage, explicit IDOR and tenant-isolation tests, PostgreSQL concurrency tests, strict serializer allowlists, sensitive-action throttles, typed report targets, gated Telegram invites, dependency audits, and PostgreSQL-backed CI. Deployment remains out of scope until Phase 8B.
 
 ## 1. Trust boundaries
 
@@ -115,10 +115,17 @@ Lock the user row for club creation, membership acceptance, and other operations
 
 - Store bot tokens only in secret management/environment configuration.
 - Store Telegram IDs as protected operational identifiers; do not expose them in normal API responses.
-- Encrypt stored invite links at the application layer and restrict decryption to the Telegram integration service.
+- Do not persist generated member invite links. If a future capability requires persistence, document it first, encrypt at the application layer, and restrict decryption to the Telegram integration service.
 - Never accept a chat ID from an ordinary client as proof of club ownership; the bot must observe and verify the group setup.
 - Grant the bot only the Telegram administrator rights needed for configured operations.
 - Treat a missing permission or failed API call as a degraded integration, not as authorization success.
+- The webhook has no session authentication and accepts `POST` only. It compares the
+  configured `TELEGRAM_WEBHOOK_SECRET` with Telegram's secret-token header in
+  constant time, rejects missing/mismatched values generically, and never logs either
+  value or raw update data.
+- Webhook update IDs have a database uniqueness constraint shared by all workers.
+  Unsupported and permanently invalid updates return 2xx after safe deduplication;
+  only transient provider failures return 5xx for Telegram retry.
 
 ## 9. Staff, audit, and operations
 
@@ -131,7 +138,7 @@ Lock the user row for club creation, membership acceptance, and other operations
 
 ## 10. Security test plan
 
-Phase 2 includes automated tests for forged hash, stale `auth_date`, replayed signed init data, duplicate binding, exact-match ambiguity, claimed-record non-disclosure, frontend-supplied identity/scope tampering, suspension, throttling, CSV validation/rollback, and sensitive-field serialization. Later phases must add the documented IDOR, role, membership, Telegram-access, outbox, and CSRF coverage as those features are implemented.
+The Phase 8A suite covers forged/malformed/stale/future/replayed Telegram data, duplicate roster binding, exact-match ambiguity, claimed-record non-disclosure, frontend-supplied identity/scope tampering, suspension, CSRF, throttling, CSV rollback, tenant IDOR, roles, membership races, Telegram access, reports, notifications, and sensitive-field serialization. Phase 8B must supplement this with controlled manual Telegram-client, reverse-proxy/header, operational permission, backup/restore, and incident-response exercises.
 
 Perform a manual pre-production review of deployment secrets, CORS/CSP, cookie settings, admin exposure, database backups, Telegram webhook validation, and bot permissions.
 Phase 5A adds one-time Telegram group-link challenges, owner-only management,
@@ -142,3 +149,96 @@ visibility, verified lyceum scoping, preference-aware fan-out, and deduplicated
 reminders. Telegram failures remain outside domain transactions.
 Phase 7 reporting is restricted to verified active students and same-lyceum
 visible targets. Reporter identity and moderation fields are staff-only.
+
+## 11. Phase 8A verified guarantees
+
+- Telegram Mini App login accepts only raw signed `init_data`; malformed, missing-hash,
+  invalid-hash, stale, unreasonable-future, replayed, missing-user, malformed-JSON,
+  non-object-user, and tampered-user payloads are rejected using fake tokens in tests.
+- Session creation and every session-authenticated unsafe verb remain CSRF-protected.
+  The frontend always sends cookies and sends the CSRF cookie value on unsafe methods.
+- Student object lookups are scoped before role checks. Cross-lyceum clubs, requests,
+  meetings, announcements, groups, notifications, and reports return safe not-found or
+  permission responses without serializing the target.
+- The roster claim, club creation, join acceptance, duplicate join request, and Telegram
+  chat-link paths use PostgreSQL transactions and database constraints. Threaded
+  `TransactionTestCase` coverage verifies one roster winner, one owned club, at most
+  three active memberships, one pending request, and one club per Telegram chat.
+- Report rows use explicit club/announcement foreign keys and an exactly-one-target
+  check. Hidden clubs and announcements outside the reporter's active membership are
+  not reportable by guessed UUID.
+- API serializers reject, rather than silently ignore, server-owned meeting,
+  announcement, report, preference, club-moderation, and Telegram-action fields.
+- Telegram member links expire after ten minutes and set
+  `creates_join_request=true`. They are returned only to active members and are never
+  stored or logged. Telegram approval must recheck the current membership.
+- Notification delivery persists only a safe exception class name, not raw provider
+  responses, URLs, or credentials.
+
+## 12. Rate limits
+
+The defaults are intentionally focused on sensitive mutations and are configurable by
+environment without weakening browsing:
+
+| Action | Scope | Default |
+|---|---|---:|
+| Telegram Mini App authentication | Client address | 20/hour |
+| Roster verification claim | Authenticated user | 5/hour |
+| Join-request submission | Authenticated user | 20/hour |
+| Report submission | Authenticated user | 10/hour |
+| Telegram invite generation | Authenticated user | 10/hour |
+
+Production must use a shared cache so replay and throttle state is consistent across
+processes. Rate limits are abuse controls, not authorization controls.
+
+## 13. Practical threat model
+
+| Threat | Current mitigation | Residual risk |
+|---|---|---|
+| Student impersonation | Signed Telegram identity, generic roster errors, per-user throttling, atomic one-to-one claim | Name/surname/group knowledge is not strong identity proof; replace it with a school-issued single-use secret before wider launch |
+| Roster enumeration | No roster API, staff-only records, exact matching, generic claim failure | An attacker can still make bounded guesses from known student details |
+| Cross-lyceum access / IDOR | Trusted roster-derived lyceum, scoped querysets/services, safe 404 regression tests | A future endpoint can regress without the same review and tests |
+| Owner privilege escalation | Server-derived owner/role/status fields, owner-scoped actions, database owner-membership constraints | Compromised owner or staff sessions retain their legitimate authority |
+| Membership-limit race | User-row lock before count/write plus threaded PostgreSQL tests | Direct writes outside domain services could bypass the application lock; restrict database write access |
+| Telegram invite leakage | Active-member authorization, ten-minute join-request link, approval-time membership recheck, no persistence/logging | A link can be forwarded and create a pending request; it must never grant admission automatically |
+| Malicious report spam | Verified/visible targets, controlled reasons, one open report per target, 10/hour throttle | Coordinated verified accounts can still create moderation load |
+| Leaked bot token | Environment-only secret, no frontend exposure, generic provider errors | A leaked production token requires immediate BotFather rotation and incident review |
+| Compromised admin | Django staff permissions, read-only sensitive fields, moderation attribution | Strong staff MFA/SSO and full privileged audit coverage remain deployment prerequisites |
+
+## 14. Phase 8B deployment prerequisites and known limitations
+
+- Prefer a same-origin HTTPS reverse proxy. If origins differ, allowlist only the exact
+  HTTPS frontend origins in CORS and `CSRF_TRUSTED_ORIGINS`; never enable all origins.
+- Keep `Secure`, `HttpOnly`, and `SameSite=Lax` session cookies unless an explicitly
+  tested Telegram client requires `SameSite=None; Secure`. Keep CSRF cookies scoped to
+  the application origin.
+- Retain HTTPS redirect, HSTS, `X-Content-Type-Options`, and `Referrer-Policy`.
+  Define CSP and frame/embedding directives only after testing all supported Telegram
+  clients; do not weaken script or connection sources broadly.
+- Production replay/throttle state requires a shared cache; the development local-memory
+  cache is process-local.
+- Profile photos remain external HTTPS references. Credentials-in-URL and non-HTTPS
+  schemes are rejected, but the browser still contacts an external host; uploads,
+  proxying, moderation, retention, and allowlisting remain out of scope.
+- Configure redaction at the reverse proxy and application observability layers for
+  cookies, `initData`, bot URLs/tokens, roster input, chat IDs, and invite links.
+- Complete minor/privacy review, staff authentication hardening, backup/restore rehearsal,
+  incident response, retention policy, and Telegram permission verification before launch.
+
+## 15. Dependency and CI security status
+
+On 2026-08-30, `npm audit` reported zero known vulnerabilities across the locked
+frontend tree. `pip-audit` reported zero known vulnerabilities in the installed Python
+environment, including Django 5.2.17, Django REST Framework 3.18.0, and psycopg 3.3.4.
+These are point-in-time results, not guarantees. CI repeats both audits, runs migrations
+and all backend tests against PostgreSQL, and runs frontend type-checking, Vitest, and
+the production build with fake secrets only.
+
+## 16. Phase 8B release boundary
+
+Production configuration, staged HSTS, exact hosts/origins, Redis cache requirements,
+Gunicorn, static serving, backups, rollback, privacy retention, incident response, and the
+manual smoke matrix are documented in `docs/DEPLOYMENT.md`, `docs/PRIVACY_RETENTION.md`,
+`docs/INCIDENT_RESPONSE.md`, and `docs/SMOKE_TEST.md`. The code includes an inbound
+Telegram webhook, but deploying its HTTPS route, rotating/configuring secrets, and passing
+real Telegram-client/group permission checks remain operator gates.

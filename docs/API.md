@@ -1,6 +1,6 @@
 # LYC Society API Contract
 
-This is the API contract and implementation guide. Phase 4 adds same-lyceum clubs, moderation, memberships, and join requests. Telegram groups, meetings, announcements, notifications, and reports remain planned until their named phases.
+This is the implemented MVP API contract. Phase 8A hardens the existing profile, club, membership, meeting, announcement, notification, Telegram group, report, and moderation boundaries without adding product features.
 
 ## 1. Conventions
 
@@ -78,9 +78,8 @@ Implemented routes use trailing slashes: `GET/POST /clubs/`, `GET/PATCH /clubs/{
 | `POST` | `/clubs` | Verified | Create one pending club; lyceum is derived from user |
 | `GET` | `/clubs/{club_id}` | Verified | Active same-lyceum club, or own pending/rejected club, with role-based fields |
 | `PATCH` | `/clubs/{club_id}` | Owner/admin | Edit allowed content; server checks ownership/status |
-| `POST` | `/clubs/{club_id}/submit` | Owner | Submit/resubmit pending or rejected club for review |
+| `POST` | `/clubs/{club_id}/resubmit` | Owner | Resubmit a rejected club for review |
 | `GET` | `/clubs/{club_id}/members` | Owner/member/admin | Same-lyceum authorized member list; minimize fields |
-| `POST` | `/clubs/{club_id}/reports` | Verified | Report the club with controlled reason |
 
 Normal discovery never returns `PENDING`, `REJECTED`, `PAUSED`, or `ARCHIVED` clubs. The owner may see their own non-active club through `/clubs/mine/`; unrelated students receive not-found behavior that does not disclose its existence.
 
@@ -91,13 +90,11 @@ Join-request routes are `POST/GET /clubs/{club_id}/join-requests/`, `POST /join-
 | Method | Route | Auth | Scope/permission |
 |---|---|---|---|
 | `POST` | `/clubs/{club_id}/join-requests` | Verified | Request membership in active same-lyceum club |
-| `GET` | `/me/join-requests` | Verified | Own request history with safe club summaries |
 | `POST` | `/join-requests/{request_id}/cancel` | Requester | Cancel own pending request |
 | `GET` | `/clubs/{club_id}/join-requests` | Owner/admin | View pending/history needed for management |
-| `POST` | `/join-requests/{request_id}/accept` | Owner/admin | Transactionally accept if all rules still hold |
-| `POST` | `/join-requests/{request_id}/reject` | Owner/admin | Reject with optional/required reason per product decision |
-| `GET` | `/me/memberships` | Verified | Own active/history membership summary |
-| `POST` | `/clubs/{club_id}/members/{user_id}/remove` | Owner/admin | Remove active member and revoke future access |
+| `POST` | `/join-requests/{request_id}/accept` | Owner | Transactionally accept if all rules still hold |
+| `POST` | `/join-requests/{request_id}/reject` | Owner | Reject with an optional bounded reason |
+| `POST` | `/clubs/{club_id}/leave` | Active non-owner member | Leave while preserving membership history |
 
 The API must not trust a club owner ID, requester ID, role, membership count, or lyceum supplied by the client.
 
@@ -105,15 +102,23 @@ The API must not trust a club owner ID, requester ID, role, membership count, or
 
 | Method | Route | Auth | Scope/permission |
 |---|---|---|---|
-| `GET` | `/clubs/{club_id}/meetings` | Same-lyceum authorized user | List visible meetings |
-| `POST` | `/clubs/{club_id}/meetings` | Owner/admin | Create meeting |
-| `PATCH` | `/meetings/{meeting_id}` | Owner/admin | Edit/cancel meeting |
-| `PUT` | `/meetings/{meeting_id}/attendance` | Active member/owner | Set simple attendance status |
-| `GET` | `/clubs/{club_id}/announcements` | Active member/same-lyceum viewer | List visible announcements |
-| `POST` | `/clubs/{club_id}/announcements` | Owner/admin | Publish announcement and fan out notifications |
-| `GET` | `/clubs/{club_id}/telegram-access` | Active member/owner | Return a short-lived or stored gated Telegram invite link, never raw integration metadata |
-| `POST` | `/clubs/{club_id}/telegram-connection` | Owner/admin | Begin group-link setup; bot completes identity/capability verification |
-| `DELETE` | `/clubs/{club_id}/telegram-connection` | Owner/admin | Disconnect/revoke integration where permitted |
+| `GET` | `/clubs/{club_id}/meetings` | Active member/owner | List visible meetings |
+| `POST` | `/clubs/{club_id}/meetings` | Owner | Create meeting |
+| `GET` | `/meetings/{meeting_id}` | Active member/owner | Read a visible meeting |
+| `PATCH`/`POST` | `/meetings/{meeting_id}` | Owner | Cancel a meeting; the request body must not assign authority or status |
+| `POST` | `/meetings/{meeting_id}/rsvp` | Active member/owner | Set `GOING` or `NOT_GOING` RSVP status |
+| `GET` | `/clubs/{club_id}/announcements` | Active member/owner | List visible announcements |
+| `POST` | `/clubs/{club_id}/announcements` | Owner | Publish announcement and fan out notifications |
+| `POST` | `/clubs/{club_id}/telegram/link/start` | Owner | Begin a short-lived group-link challenge; bot confirmation verifies chat identity and capability |
+| `GET`/`DELETE` | `/clubs/{club_id}/telegram` | Owner | Read safe link status or disconnect the group |
+| `POST` | `/clubs/{club_id}/telegram/invite` | Active member/owner | Return a ten-minute join-request invite; never persist it |
+
+`POST /telegram/webhook/` is a Telegram-to-server integration endpoint, not a
+student API. It has no session authentication, accepts only a valid JSON Telegram
+Update with `X-Telegram-Bot-Api-Secret-Token`, and returns generic responses. It
+processes only `message` (`/connect <challenge>` in a group) and
+`chat_join_request`; other update types are safely ignored. It must never be called
+by the Mini App.
 
 Telegram group operations that require Bot API permissions are asynchronous/capability-dependent. An API response must expose a safe integration status, not imply success before the Bot API confirms it.
 
@@ -123,27 +128,26 @@ Telegram group operations that require Bot API permissions are asynchronous/capa
 |---|---|---|---|
 | `GET` | `/notifications` | Verified | Paginated own notifications |
 | `POST` | `/notifications/{id}/read` | Recipient | Mark one notification read |
-| `POST` | `/notifications/read-all` | Recipient | Mark own notifications read |
 | `GET` | `/notification-preferences` | Verified | Get basic preference state |
 | `PATCH` | `/notification-preferences` | Verified | Change allowed in-app/Telegram preferences |
 
 Notification creation is a domain side effect; recipients are derived from membership and account state. Clients cannot choose arbitrary recipients.
 
-## 9. Implemented staff foundation and planned staff boundary
+## 9. Implemented staff boundary
 
-The implemented Django Admin registers users, lyceums, official student records, profiles, and interests with search, filters, and read-only audit fields. It hides the verification-code hash and makes a persisted Telegram ID read-only after account creation.
+The implemented Django Admin registers users, lyceums, official student records, profiles, interests, clubs, memberships, join requests, meetings, RSVP rows, announcements, notifications/preferences, Telegram group state/challenges, and reports. Sensitive identity and timestamp fields are read-only where appropriate; persisted Telegram identity cannot be changed through ordinary account editing, claimed roster identity must be reset before correction, club moderation uses controlled actions, and report reviews derive the reviewer from the staff session.
 
 Use Django Admin plus custom staff views for MVP. If API-backed staff screens are added, keep them under a distinct namespace such as `/api/v1/admin/` and require staff permissions on every route.
 
-Planned staff operations:
+Implemented staff operations include:
 
 - Search/view users without dumping the roster; suspend/restore accounts.
 - Create/edit lyceums.
 - Import/reconcile official student records.
 - Review/approve/reject/suspend/archive clubs.
 - View and resolve reports.
-- View dashboard counts.
-- Inspect audit and integration health records according to least privilege.
+
+Dashboard counts, a general audit-event model, and integration-health views are not implemented. These remain operational/admin limitations rather than student API capabilities.
 
 Staff endpoints must scope by explicit authorized staff capability, record audit events, and avoid returning raw verification code hashes or Telegram invite links.
 
@@ -176,19 +180,23 @@ For every protected detail/action route, test:
 - stale/current status behavior;
 - concurrent duplicate requests where relevant;
 - response does not leak forbidden fields.
-### Phase 5A
+### Telegram groups and notifications
 
 - `POST /api/v1/clubs/{id}/telegram/link/start/` — owner-only short-lived link challenge.
 - `GET`/`DELETE /api/v1/clubs/{id}/telegram/` — owner group status/unlink.
-- `POST /api/v1/clubs/{id}/telegram/invite/` — active members receive a one-use managed invite.
+- `POST /api/v1/clubs/{id}/telegram/invite/` — active members receive a short-lived join-request invite.
 - `GET /api/v1/notifications/` and `POST /api/v1/notifications/{id}/read/` — recipient-only notifications.
-### Phase 5B
+### Meetings and announcements
 
-Meetings: `GET/POST /api/v1/clubs/{id}/meetings/`, `GET/POST /api/v1/meetings/{id}/`.
+Meetings: `GET/POST /api/v1/clubs/{id}/meetings/`, `GET/PATCH/POST /api/v1/meetings/{id}/`, and `POST /api/v1/meetings/{id}/rsvp/`.
 Announcements: `GET/POST /api/v1/clubs/{id}/announcements/`.
 Preferences: `GET/PATCH /api/v1/notification-preferences/`.
-### Phase 7 reports
+### Reports
 
 Verified students may submit `POST /api/v1/reports/` with `target_type` (`CLUB`
 or `ANNOUNCEMENT`), `target_id`, controlled `reason`, and bounded `details`.
 Reporter, status, reviewer, and lyceum are server-controlled.
+
+## 12. Sensitive-operation throttles
+
+Default DRF rates are 20/hour per client address for Telegram authentication, 5/hour per authenticated user for roster claims, 20/hour per authenticated user for join-request submission, 10/hour per authenticated user for report submission, and 10/hour per authenticated user for Telegram invite generation. Browsing endpoints are not broadly throttled. Production must use shared cache storage for consistent replay and throttle state across processes.

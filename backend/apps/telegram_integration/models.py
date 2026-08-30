@@ -20,6 +20,21 @@ class ClubTelegramGroup(UUIDTimeStampedModel):
 
 class TelegramLinkChallenge(UUIDTimeStampedModel):
     club = models.ForeignKey(Club, on_delete=models.CASCADE, related_name="telegram_link_challenges")
+    expected_owner = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.PROTECT,
+        related_name="telegram_link_challenges",
+    )
     token_hash = models.CharField(max_length=64, unique=True)
     expires_at = models.DateTimeField()
     used_at = models.DateTimeField(null=True, blank=True)
+
+
+class TelegramWebhookUpdate(UUIDTimeStampedModel):
+    """Minimal durable idempotency record; raw update contents are never stored."""
+
+    update_id = models.PositiveBigIntegerField(unique=True)
+    processed_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        ordering = ("-created_at",)

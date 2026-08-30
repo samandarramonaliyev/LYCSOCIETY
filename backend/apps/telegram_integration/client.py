@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import json
+from collections.abc import Mapping
+from urllib.error import HTTPError, URLError
 from urllib.request import Request, urlopen
 
 from django.conf import settings
@@ -18,10 +20,19 @@ class TelegramBotClient:
         try:
             with urlopen(request, timeout=8) as response:
                 data = json.loads(response.read())
-        except Exception as exc:
+        except HTTPError as exc:
+            raise TelegramAPIError(
+                "Telegram API unavailable",
+                retryable=exc.code == 429 or exc.code >= 500,
+            ) from exc
+        except (URLError, OSError, TimeoutError, UnicodeDecodeError, json.JSONDecodeError) as exc:
             raise TelegramAPIError("Telegram API unavailable") from exc
-        if not data.get("ok"):
-            raise TelegramAPIError("Telegram API request failed")
+        if not isinstance(data, Mapping) or not data.get("ok"):
+            error_code = data.get("error_code") if isinstance(data, Mapping) else None
+            raise TelegramAPIError(
+                "Telegram API request failed",
+                retryable=not isinstance(error_code, int) or error_code == 429 or error_code >= 500,
+            )
         return data["result"]
 
     def send_message(self, chat_id, text):  # type: ignore[no-untyped-def]
@@ -47,3 +58,34 @@ class TelegramBotClient:
             "revokeChatInviteLink",
             {"chat_id": chat_id, "invite_link": invite_link},
         )
+
+    def get_me(self):  # type: ignore[no-untyped-def]
+        return self._call("getMe", {})
+
+    def get_chat(self, chat_id):  # type: ignore[no-untyped-def]
+        return self._call("getChat", {"chat_id": chat_id})
+
+    def get_chat_member(self, chat_id, user_id):  # type: ignore[no-untyped-def]
+        return self._call("getChatMember", {"chat_id": chat_id, "user_id": user_id})
+
+    def approve_chat_join_request(self, chat_id, user_id):  # type: ignore[no-untyped-def]
+        return self._call("approveChatJoinRequest", {"chat_id": chat_id, "user_id": user_id})
+
+    def decline_chat_join_request(self, chat_id, user_id):  # type: ignore[no-untyped-def]
+        return self._call("declineChatJoinRequest", {"chat_id": chat_id, "user_id": user_id})
+
+    def set_webhook(self, *, url, secret_token, allowed_updates):  # type: ignore[no-untyped-def]
+        return self._call(
+            "setWebhook",
+            {
+                "url": url,
+                "secret_token": secret_token,
+                "allowed_updates": list(allowed_updates),
+            },
+        )
+
+    def delete_webhook(self):  # type: ignore[no-untyped-def]
+        return self._call("deleteWebhook", {})
+
+    def get_webhook_info(self):  # type: ignore[no-untyped-def]
+        return self._call("getWebhookInfo", {})

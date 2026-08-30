@@ -2,6 +2,8 @@ from __future__ import annotations
 
 from django import forms
 from django.contrib import admin, messages
+from django.contrib.admin.models import CHANGE, LogEntry
+from django.db import transaction
 
 from .models import Club, ClubMembership, ClubStatus, JoinRequest, JoinRequestStatus
 from .services import ClubStateConflict, moderate_club
@@ -44,12 +46,22 @@ class ClubAdmin(admin.ModelAdmin):
 
     def _moderate_selected(self, request, queryset, action: str) -> None:  # type: ignore[no-untyped-def]
         changed = 0
-        for club in queryset:
-            try:
-                moderate_club(club_id=club.pk, action=action)
-            except ClubStateConflict:
-                continue
-            changed += 1
+        changed_ids = []
+        with transaction.atomic():
+            for club in queryset:
+                try:
+                    moderate_club(club_id=club.pk, action=action)
+                except ClubStateConflict:
+                    continue
+                changed += 1
+                changed_ids.append(club.pk)
+            if changed_ids:
+                LogEntry.objects.log_actions(
+                    request.user.pk,
+                    Club.objects.filter(pk__in=changed_ids),
+                    CHANGE,
+                    change_message=f"Moderation action: {action}.",
+                )
         self.message_user(request, f"{changed} club(s) updated.", messages.SUCCESS)
 
 
