@@ -17,4 +17,5 @@ urlpatterns = [
     path("api/v1/", include("apps.notifications.urls")),
     path("api/v1/", include("apps.telegram_integration.urls")),
     path("api/v1/", include("apps.meetings.urls")),
+    path("api/v1/", include("apps.reports.urls")),
 ]

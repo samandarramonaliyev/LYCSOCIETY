@@ -1,6 +1,6 @@
 # LYC Society Development Plan
 
-Phases 0, 1, 2, and 3 are complete. **Phase 4 is the active implementation phase.** Its code may be closed only after Django checks, migration consistency checks, and PostgreSQL-backed tests pass in the configured local environment.
+Phases 0–7 are complete. **Phase 8A final hardening is the active implementation phase.** It covers security audit, adversarial and concurrency tests, dependency review, cleanup, and CI; deployment remains reserved for Phase 8B.
 
 ## Phase 0 — Documentation baseline (complete for this task)
 
@@ -156,3 +156,5 @@ Exit criteria:
 Phase 5A adds Telegram group linking/invite integration and the notification
 outbox/delivery foundation. Meetings and announcements remain Phase 5B.
 Phase 5B adds meetings, announcements, reminders, and preference enforcement.
+Phase 7 adds Django Admin roster operations, claim reset, club moderation support,
+and a minimal scoped reporting queue.

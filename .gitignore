@@ -10,6 +10,7 @@ venv/
 .ruff_cache/
 coverage.xml
 htmlcov/
+.coverage
 
 # Django
 *.sqlite3
@@ -22,7 +23,14 @@ media/
 !.env.example
 .vscode/
 .idea/
+.tools/
 
 # Operating system
 .DS_Store
 Thumbs.db
+
+# Frontend
+node_modules/
+dist/
+coverage/
+*.tsbuildinfo

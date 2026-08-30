@@ -235,21 +235,21 @@ def create_join_request(*, club_id, user: User) -> JoinRequest:
 
 @transaction.atomic
 def accept_join_request(*, request_id, owner: User) -> ClubMembership:
-    join_request = JoinRequest.objects.filter(pk=request_id).first()
-    if join_request is None:
-        raise ClubNotFound
     locked_owner = User.objects.select_for_update().get(pk=owner.pk)
     _verify_active_user(locked_owner)
     trusted_lyceum = get_verified_lyceum(locked_owner)
-    club = Club.objects.select_for_update().filter(pk=join_request.club_id).first()
+    visible_request = JoinRequest.objects.filter(
+        pk=request_id,
+        club__owner_id=locked_owner.pk,
+        club__lyceum_id=trusted_lyceum.pk,
+    ).first()
+    if visible_request is None:
+        raise ClubNotFound
+    club = Club.objects.select_for_update().filter(pk=visible_request.club_id).first()
     if club is None:
         raise ClubNotFound
     join_request = JoinRequest.objects.select_for_update().filter(pk=request_id).first()
     if join_request is None:
-        raise ClubNotFound
-    if club.owner_id != owner.pk:
-        raise ClubNotOwner
-    if club.lyceum_id != trusted_lyceum.pk:
         raise ClubNotFound
     locked_user = User.objects.select_for_update().get(pk=join_request.user_id)
     _verify_active_user(locked_user)
@@ -275,13 +275,16 @@ def accept_join_request(*, request_id, owner: User) -> ClubMembership:
 
 @transaction.atomic
 def reject_join_request(*, request_id, owner: User, reason: str = "") -> JoinRequest:
-    join_request = JoinRequest.objects.select_for_update().select_related("club").filter(pk=request_id).first()
+    locked_owner = User.objects.select_for_update().get(pk=owner.pk)
+    _verify_active_user(locked_owner)
+    trusted_lyceum = get_verified_lyceum(locked_owner)
+    join_request = JoinRequest.objects.select_for_update().select_related("club").filter(
+        pk=request_id,
+        club__lyceum_id=trusted_lyceum.pk,
+        club__owner_id=locked_owner.pk,
+    ).first()
     if join_request is None:
         raise ClubNotFound
-    if join_request.club.lyceum_id != get_verified_lyceum(owner).pk:
-        raise ClubNotFound
-    if join_request.club.owner_id != owner.pk:
-        raise ClubNotOwner
     if join_request.status != JoinRequestStatus.PENDING:
         raise JoinRequestConflict
     join_request.status = JoinRequestStatus.REJECTED
@@ -293,13 +296,16 @@ def reject_join_request(*, request_id, owner: User, reason: str = "") -> JoinReq
 
 @transaction.atomic
 def cancel_join_request(*, request_id, user: User) -> JoinRequest:
-    join_request = JoinRequest.objects.select_for_update().select_related("club").filter(pk=request_id).first()
+    locked_user = User.objects.select_for_update().get(pk=user.pk)
+    _verify_active_user(locked_user)
+    trusted_lyceum = get_verified_lyceum(locked_user)
+    join_request = JoinRequest.objects.select_for_update().select_related("club").filter(
+        pk=request_id,
+        user_id=locked_user.pk,
+        club__lyceum_id=trusted_lyceum.pk,
+    ).first()
     if join_request is None:
         raise ClubNotFound
-    if join_request.club.lyceum_id != get_verified_lyceum(user).pk:
-        raise ClubNotFound
-    if join_request.user_id != user.pk:
-        raise PermissionDenied
     if join_request.status != JoinRequestStatus.PENDING:
         raise JoinRequestConflict
     join_request.status = JoinRequestStatus.CANCELLED

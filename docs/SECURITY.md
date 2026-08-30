@@ -140,3 +140,5 @@ Telegram delivery is best effort and cannot roll back club transactions.
 Phase 5B enforces owner-only meeting/announcement mutations, active-membership
 visibility, verified lyceum scoping, preference-aware fan-out, and deduplicated
 reminders. Telegram failures remain outside domain transactions.
+Phase 7 reporting is restricted to verified active students and same-lyceum
+visible targets. Reporter identity and moderation fields are staff-only.

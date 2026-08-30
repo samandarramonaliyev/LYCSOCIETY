@@ -15,7 +15,9 @@ def deliver_notification(notification, client):
         client.send_message(notification.recipient.telegram_user_id, f"{notification.title}\n\n{notification.body}")
     except Exception as exc:
         notification.delivery_status = DeliveryStatus.FAILED
-        notification.last_delivery_error = str(exc)[:500]
+        # Persist only a safe error category. Provider text can contain request URLs,
+        # invite links, or credentials and must not become durable application data.
+        notification.last_delivery_error = type(exc).__name__[:500]
         notification.save(update_fields=("delivery_attempts", "delivery_status", "last_delivery_error", "updated_at"))
         return False
     notification.delivery_status = DeliveryStatus.SENT

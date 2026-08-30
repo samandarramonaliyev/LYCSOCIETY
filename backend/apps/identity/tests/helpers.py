@@ -11,6 +11,28 @@ from uuid import uuid4
 TEST_BOT_TOKEN = "test-bot-token"
 
 
+def sign_init_data_values(
+    values: dict[str, str],
+    *,
+    bot_token: str = TEST_BOT_TOKEN,
+) -> str:
+    signed_values = dict(values)
+    data_check_string = "\n".join(
+        f"{key}={value}" for key, value in sorted(signed_values.items())
+    )
+    secret_key = hmac.new(
+        b"WebAppData",
+        bot_token.encode("utf-8"),
+        hashlib.sha256,
+    ).digest()
+    signed_values["hash"] = hmac.new(
+        secret_key,
+        data_check_string.encode("utf-8"),
+        hashlib.sha256,
+    ).hexdigest()
+    return urlencode(signed_values)
+
+
 def build_signed_init_data(
     *,
     telegram_user_id: int,
@@ -35,17 +57,4 @@ def build_signed_init_data(
             separators=(",", ":"),
         ),
     }
-    data_check_string = "\n".join(
-        f"{key}={value}" for key, value in sorted(values.items())
-    )
-    secret_key = hmac.new(
-        b"WebAppData",
-        bot_token.encode("utf-8"),
-        hashlib.sha256,
-    ).digest()
-    values["hash"] = hmac.new(
-        secret_key,
-        data_check_string.encode("utf-8"),
-        hashlib.sha256,
-    ).hexdigest()
-    return urlencode(values)
+    return sign_init_data_values(values, bot_token=bot_token)

@@ -187,3 +187,8 @@ For every protected detail/action route, test:
 Meetings: `GET/POST /api/v1/clubs/{id}/meetings/`, `GET/POST /api/v1/meetings/{id}/`.
 Announcements: `GET/POST /api/v1/clubs/{id}/announcements/`.
 Preferences: `GET/PATCH /api/v1/notification-preferences/`.
+### Phase 7 reports
+
+Verified students may submit `POST /api/v1/reports/` with `target_type` (`CLUB`
+or `ANNOUNCEMENT`), `target_id`, controlled `reason`, and bounded `details`.
+Reporter, status, reviewer, and lyceum are server-controlled.

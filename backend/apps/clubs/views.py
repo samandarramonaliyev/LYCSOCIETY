@@ -10,6 +10,7 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from apps.common.permissions import IsVerifiedActiveStudent
+from apps.common.throttling import JoinRequestThrottle
 from apps.lyceums.services.scoping import get_verified_lyceum, scope_queryset_to_verified_lyceum
 from apps.profiles.models import Interest
 
@@ -125,6 +126,11 @@ class ClubModerationAPIView(APIView):
     permission_classes = [IsAdminUser]
 
     def post(self, request, club_id) -> Response:  # type: ignore[no-untyped-def]
+        unexpected = set(request.data) - {"action", "reason"}
+        if unexpected:
+            raise serializers.ValidationError(
+                {field: "This field is not writable." for field in sorted(unexpected)}
+            )
         action = str(request.data.get("action", "")).strip().lower()
         reason = str(request.data.get("reason", ""))
         if action not in {"approve", "reject", "pause", "archive"}:
@@ -135,6 +141,9 @@ class ClubModerationAPIView(APIView):
 
 class JoinRequestListCreateAPIView(APIView):
     permission_classes = [IsVerifiedActiveStudent]
+
+    def get_throttles(self):  # type: ignore[no-untyped-def]
+        return [JoinRequestThrottle()] if self.request.method == "POST" else []
 
     def post(self, request, club_id) -> Response:  # type: ignore[no-untyped-def]
         if request.data:
@@ -152,10 +161,18 @@ class JoinRequestListCreateAPIView(APIView):
         return Response({"results": JoinRequestSerializer(requests, many=True, context={"request": request}).data})
 
 
-def _join_request_for_user(request_id, user):  # type: ignore[no-untyped-def]
+def _join_request_for_user(request_id, user, action):  # type: ignore[no-untyped-def]
     lyceum = get_verified_lyceum(user)
+    filters = {
+        "pk": request_id,
+        "club__lyceum_id": lyceum.pk,
+    }
+    if action in {"accept", "reject"}:
+        filters["club__owner_id"] = user.pk
+    elif action == "cancel":
+        filters["user_id"] = user.pk
     join_request = JoinRequest.objects.select_related("club").filter(
-        pk=request_id, club__lyceum_id=lyceum.pk
+        **filters
     ).first()
     if join_request is None:
         raise ClubNotFound
@@ -167,7 +184,7 @@ class JoinRequestActionAPIView(APIView):
 
     def post(self, request, request_id, action) -> Response:  # type: ignore[no-untyped-def]
         if action == "accept":
-            join_request = _join_request_for_user(request_id, request.user)
+            _join_request_for_user(request_id, request.user, action)
             membership = accept_join_request(request_id=request_id, owner=request.user)
             return Response(MemberSerializer(membership, context={"request": request}).data)
         if action == "reject":
@@ -176,7 +193,7 @@ class JoinRequestActionAPIView(APIView):
             if unexpected:
                 raise serializers.ValidationError({field: "This field is not writable." for field in unexpected})
             serializer.is_valid(raise_exception=True)
-            _join_request_for_user(request_id, request.user)
+            _join_request_for_user(request_id, request.user, action)
             result = reject_join_request(
                 request_id=request_id,
                 owner=request.user,
@@ -184,7 +201,7 @@ class JoinRequestActionAPIView(APIView):
             )
             return Response(JoinRequestSerializer(result, context={"request": request}).data)
         if action == "cancel":
-            _join_request_for_user(request_id, request.user)
+            _join_request_for_user(request_id, request.user, action)
             result = cancel_join_request(request_id=request_id, user=request.user)
             return Response(JoinRequestSerializer(result, context={"request": request}).data)
         raise serializers.ValidationError({"action": "Unsupported request action."})

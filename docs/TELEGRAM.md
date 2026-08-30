@@ -106,5 +106,8 @@ The bot does not create groups. A club owner starts a short-lived link challenge
 adds the bot as an administrator in an existing group, and completes the challenge
 through the bot. The server stores a one-time token hash and accepts confirmation
 only after the bot has verified the chat and its `can_invite_users` permission.
-Telegram chat IDs are unique per linked club. Member invite links are one-use and
-expire after ten minutes; they are never stored as permanent public links.
+Telegram chat IDs are unique per linked club. Member invite links expire after ten
+minutes and require administrator approval with `creates_join_request=true`; the
+Bot API does not permit a `member_limit` on such links. LYC Society never stores
+them as permanent public links, and the bot rechecks active membership before
+approving the resulting join request.

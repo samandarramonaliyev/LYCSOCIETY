@@ -60,12 +60,13 @@ class ClubSerializer(serializers.ModelSerializer):
     member_count = serializers.SerializerMethodField()
     membership_status = serializers.SerializerMethodField()
     request_status = serializers.SerializerMethodField()
+    request_id = serializers.SerializerMethodField()
 
     class Meta:
         model = Club
         fields = (
             "id", "name", "short_description", "description", "category", "interests", "owner",
-            "member_count", "membership_status", "request_status", "created_at",
+            "member_count", "membership_status", "request_status", "request_id", "created_at",
         )
 
     def get_interests(self, obj: Club):
@@ -86,6 +87,15 @@ class ClubSerializer(serializers.ModelSerializer):
         user = self.context.get("request").user if self.context.get("request") else None
         request = obj.join_requests.filter(user=user).order_by("-created_at").first() if user else None
         return request.status if request else None
+
+    def get_request_id(self, obj: Club) -> str | None:
+        user = self.context.get("request").user if self.context.get("request") else None
+        join_request = (
+            obj.join_requests.filter(user=user).order_by("-created_at").first()
+            if user
+            else None
+        )
+        return str(join_request.pk) if join_request else None
 
 
 class OwnerClubSerializer(ClubSerializer):

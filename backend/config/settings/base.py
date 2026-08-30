@@ -33,6 +33,7 @@ INSTALLED_APPS = [
     "apps.notifications.apps.NotificationsConfig",
     "apps.telegram_integration.apps.TelegramIntegrationConfig",
     "apps.meetings.apps.MeetingsConfig",
+    "apps.reports.apps.ReportsConfig",
 ]
 
 MIDDLEWARE = [
@@ -148,6 +149,9 @@ REST_FRAMEWORK = {
     "DEFAULT_THROTTLE_RATES": {
         "telegram_auth": env("TELEGRAM_AUTH_THROTTLE_RATE", default="20/hour"),
         "student_verification": env("STUDENT_VERIFICATION_THROTTLE_RATE", default="5/hour"),
+        "join_request": env("JOIN_REQUEST_THROTTLE_RATE", default="20/hour"),
+        "report_submission": env("REPORT_SUBMISSION_THROTTLE_RATE", default="10/hour"),
+        "telegram_invite": env("TELEGRAM_INVITE_THROTTLE_RATE", default="10/hour"),
     },
     "EXCEPTION_HANDLER": "apps.common.api.exception_handler",
 }

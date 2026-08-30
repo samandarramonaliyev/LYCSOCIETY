@@ -81,7 +81,12 @@ class SelfProfileSerializer(serializers.ModelSerializer):
             attrs["profile_photo_url"] = photo_url
             if photo_url:
                 parsed = urlparse(photo_url)
-                if parsed.scheme.lower() != "https" or not parsed.netloc:
+                if (
+                    parsed.scheme.lower() != "https"
+                    or not parsed.netloc
+                    or parsed.username is not None
+                    or parsed.password is not None
+                ):
                     raise serializers.ValidationError(
                         {"profile_photo_url": "A valid HTTPS URL is required."}
                     )

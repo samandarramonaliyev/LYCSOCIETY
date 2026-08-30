@@ -272,3 +272,5 @@ are unique when supplied.
 Phase 5B adds Meeting, MeetingRSVP, and Announcement entities. Meetings belong to
 active clubs, are visible only to active members, and use scheduled/cancelled
 states. Reminder notifications are deduplicated per meeting/member.
+Phase 7 adds a staff-managed Report queue with controlled reasons, open/reviewed/
+actioned/dismissed states, and reviewer audit timestamps.

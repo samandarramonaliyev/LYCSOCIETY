@@ -189,3 +189,31 @@ outbox-like database record delivered separately with bounded retries.
 
 Meetings use scheduled/cancelled states and one-hour, deduplicated reminder
 notifications via a management command. RSVP is intentionally minimal.
+
+### D-028 — Phase 8A report target integrity and visibility
+
+**Status:** Accepted for Phase 8A
+**Decision:** Store report targets as explicit nullable foreign keys to `Club` and
+`Announcement`, with a database check requiring exactly one target and partial
+uniqueness for one open report per reporter/target. The student API continues to
+accept the stable `target_type`/`target_id` contract, but resolves that input to a
+server-authorized target before creating the report. A club must be active and
+same-lyceum; an announcement must belong to an active club in which the reporter
+has an active membership.
+**Reason:** The Phase 7 generic UUID implementation disagreed with D-013 and could
+allow a guessed same-lyceum UUID to report content the caller could not otherwise
+see. Typed foreign keys preserve referential integrity and visibility-scoped lookup
+prevents that IDOR.
+
+### D-029 — Phase 8A Telegram invite gating takes precedence over member limits
+
+**Status:** Accepted for Phase 8A
+**Decision:** Member access uses a bot-owned invite link that expires after ten
+minutes and sets `creates_join_request=true`. It does not set `member_limit` because
+Telegram forbids combining that option with join-request links. The bot must still
+approve the resulting request only after mapping the Telegram identity and
+rechecking the current active club membership. The link is returned only to the
+authorized member and is never persisted or logged by LYC Society.
+**Reason:** A one-use direct-admission link can be forwarded and bypass the
+application membership decision. Join-request gating fails closed and preserves
+the product's authoritative membership check; the short expiry limits sharing risk.

@@ -51,17 +51,18 @@ class TelegramIntegrationTests(TestCase):
         result = create_member_invite(club_id=self.club.pk, user=self.owner, client=client)
         self.assertEqual(result, "https://t.me/+one-use")
         kwargs = client.create_invite_link.call_args.kwargs
-        self.assertEqual(kwargs["member_limit"], 1)
+        self.assertTrue(kwargs["creates_join_request"])
+        self.assertNotIn("member_limit", kwargs)
         self.assertIn("expire_date", kwargs)
 
     def test_cross_lyceum_user_cannot_obtain_invite(self):
-        from rest_framework.exceptions import PermissionDenied
+        from rest_framework.exceptions import NotFound
         other_lyceum = Lyceum.objects.create(name="Other Lyceum", code="tg-other")
         user = User.objects.create_user(telegram_user_id=900012)
         StudentRecord.objects.create(lyceum=other_lyceum, first_name="E", last_name="F", group_name="10-C", verified_user=user, verified_at=timezone.now())
         client = Mock()
         from apps.telegram_integration.services import create_member_invite
-        with self.assertRaises(PermissionDenied):
+        with self.assertRaises(NotFound):
             create_member_invite(club_id=self.club.pk, user=user, client=client)
         client.create_invite_link.assert_not_called()
 

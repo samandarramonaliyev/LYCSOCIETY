@@ -150,3 +150,70 @@ class ClubApiTests(TestCase):
         self.assertEqual(club.status, ClubStatus.PENDING)
         self.assertEqual(club.rejection_reason, "")
         self.assertEqual(Club.objects.filter(owner=self.owner).count(), 1)
+
+    def test_join_request_actions_hide_objects_from_unrelated_students_and_owners(self) -> None:
+        club = self.create_pending()
+        self.activate(club)
+        self.client.force_login(self.student)
+        created = self.client.post(
+            f"/api/v1/clubs/{club.id}/join-requests/",
+            {},
+            format="json",
+            secure=True,
+        )
+        request_id = created.json()["id"]
+
+        unrelated = self.make_user(640_000_006, self.lyceum, "Unrelated")
+        self.client.force_login(unrelated)
+        self.assertEqual(
+            self.client.post(
+                f"/api/v1/join-requests/{request_id}/cancel/",
+                {},
+                format="json",
+                secure=True,
+            ).status_code,
+            404,
+        )
+
+        other_owner = self.make_user(640_000_007, self.lyceum, "Other Owner")
+        other_club = Club.objects.create(
+            lyceum=self.lyceum,
+            owner=other_owner,
+            name="Other Club",
+            short_description="Other",
+            description="Other",
+            category="OTHER",
+            status=ClubStatus.ACTIVE,
+        )
+        ClubMembership.objects.create(
+            club=other_club,
+            user=other_owner,
+            role=MembershipRole.OWNER,
+            status=MembershipStatus.ACTIVE,
+        )
+        self.client.force_login(other_owner)
+        for action in ("accept", "reject"):
+            response = self.client.post(
+                f"/api/v1/join-requests/{request_id}/{action}/",
+                {},
+                format="json",
+                secure=True,
+            )
+            self.assertEqual(response.status_code, 404)
+        self.assertEqual(
+            JoinRequest.objects.get(pk=request_id).status,
+            JoinRequestStatus.PENDING,
+        )
+
+    def test_member_cannot_assign_owner_role(self) -> None:
+        club = self.create_pending()
+        self.activate(club)
+        self.client.force_login(self.student)
+        response = self.client.post(
+            f"/api/v1/clubs/{club.id}/join-requests/",
+            {"role": "OWNER"},
+            format="json",
+            secure=True,
+        )
+        self.assertEqual(response.status_code, 400)
+        self.assertFalse(JoinRequest.objects.filter(club=club, user=self.student).exists())

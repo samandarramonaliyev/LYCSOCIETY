@@ -10,7 +10,11 @@ from rest_framework.test import APITestCase
 from rest_framework.test import APIClient
 
 from apps.identity.models import AccountStatus, User
-from apps.identity.tests.helpers import TEST_BOT_TOKEN, build_signed_init_data
+from apps.identity.tests.helpers import (
+    TEST_BOT_TOKEN,
+    build_signed_init_data,
+    sign_init_data_values,
+)
 from apps.lyceums.models import Lyceum, StudentRecord
 
 
@@ -172,6 +176,74 @@ class TelegramAuthenticationApiTests(APITestCase):
         self.assertEqual(missing_response.status_code, 400)
         self.assertEqual(malformed_response.status_code, 401)
         self.assertEqual(malformed_response.json()["error"]["code"], "TELEGRAM_INIT_DATA_INVALID")
+
+    def test_missing_hash_is_rejected(self) -> None:
+        init_data = build_signed_init_data(telegram_user_id=610_000_011)
+        without_hash = urlencode(
+            {
+                key: value[0]
+                for key, value in parse_qs(init_data).items()
+                if key != "hash"
+            }
+        )
+
+        response = self.authenticate(without_hash)
+
+        self.assertEqual(response.status_code, 401)
+        self.assertEqual(response.json()["error"]["code"], "TELEGRAM_INIT_DATA_INVALID")
+
+    def test_malformed_and_future_auth_dates_are_rejected(self) -> None:
+        user_json = json.dumps({"id": 610_000_012}, separators=(",", ":"))
+        malformed = sign_init_data_values({"auth_date": "not-an-integer", "user": user_json})
+        future = sign_init_data_values(
+            {"auth_date": str(int(time.time()) + 31), "user": user_json}
+        )
+
+        malformed_response = self.authenticate(malformed)
+        future_response = self.authenticate(future)
+
+        self.assertEqual(malformed_response.status_code, 401)
+        self.assertEqual(
+            malformed_response.json()["error"]["code"],
+            "TELEGRAM_INIT_DATA_INVALID",
+        )
+        self.assertEqual(future_response.status_code, 401)
+        self.assertEqual(
+            future_response.json()["error"]["code"],
+            "TELEGRAM_INIT_DATA_EXPIRED",
+        )
+
+    def test_missing_or_malformed_user_payload_is_rejected(self) -> None:
+        now = str(int(time.time()))
+        missing = sign_init_data_values({"auth_date": now, "query_id": "missing-user"})
+        malformed_json = sign_init_data_values(
+            {"auth_date": now, "query_id": "bad-json", "user": "{"}
+        )
+        non_object_json = sign_init_data_values(
+            {"auth_date": now, "query_id": "array-user", "user": "[]"}
+        )
+
+        for init_data in (missing, malformed_json, non_object_json):
+            response = self.authenticate(init_data)
+            self.assertEqual(response.status_code, 401)
+            self.assertEqual(
+                response.json()["error"]["code"],
+                "TELEGRAM_INIT_DATA_INVALID",
+            )
+
+    def test_signed_user_payload_with_invalid_identity_type_is_rejected(self) -> None:
+        init_data = sign_init_data_values(
+            {
+                "auth_date": str(int(time.time())),
+                "query_id": "string-id",
+                "user": json.dumps({"id": "610000013"}, separators=(",", ":")),
+            }
+        )
+
+        response = self.authenticate(init_data)
+
+        self.assertEqual(response.status_code, 401)
+        self.assertEqual(response.json()["error"]["code"], "TELEGRAM_INIT_DATA_INVALID")
 
     def test_logout_ends_the_session(self) -> None:
         authentication_response = self.authenticate(
