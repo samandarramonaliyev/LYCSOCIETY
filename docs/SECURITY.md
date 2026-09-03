@@ -38,6 +38,13 @@ For replay-risk reduction, the validated hash is stored only as a SHA-256-derive
 
 Never use `initDataUnsafe` as an authority, accept a frontend-supplied Telegram ID, log raw initialization data, or use a Telegram username as a stable identity. Never accept a normal browser request as proof of verification.
 
+The optional local-browser development login is not an exception to the production
+identity boundary. It exists only in `config.settings.development`, requires both
+`DEBUG` and an explicit `LOCAL_DEV_AUTH_ENABLED` flag, retains CSRF protection, and
+uses one server-configured fake ID rather than client input. Production settings force
+the feature off even if the environment contains development variables. It creates an
+unverified, non-staff local account and must never be used as verification proof.
+
 Use a short freshness window appropriate for the product and allow re-authentication with newly generated Telegram data when expired. The default is five minutes with 30 seconds of future clock tolerance; both values are environment-configurable and covered by tests.
 
 ## 3. Session and browser controls

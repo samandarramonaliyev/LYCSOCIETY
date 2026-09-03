@@ -20,6 +20,15 @@ class TelegramAuthenticationSerializer(serializers.Serializer):
         return attrs
 
 
+class LocalDevelopmentAuthenticationSerializer(serializers.Serializer):
+    """Reject request data: local identity is configured only on the server."""
+
+    def validate(self, attrs: dict[str, object]) -> dict[str, object]:
+        if self.initial_data:
+            raise serializers.ValidationError("This endpoint does not accept request data.")
+        return attrs
+
+
 def verification_status_for(user: User) -> str:
     if user.status == AccountStatus.SUSPENDED:
         return "SUSPENDED"

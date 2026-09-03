@@ -6,7 +6,7 @@ from urllib.parse import urlparse
 
 from django.core.exceptions import ImproperlyConfigured
 
-from .environment import env, load_development_environment
+from .environment import env, env_bool, env_int, load_development_environment
 
 
 # A local .env is a development convenience only. It is loaded before base.py
@@ -16,6 +16,14 @@ load_development_environment(PROJECT_ROOT / ".env")
 os.environ.setdefault("DJANGO_DEBUG", "true")
 
 from .base import *  # noqa: E402,F403
+
+
+# This local-browser login is intentionally unavailable outside development.py.
+LOCAL_DEV_AUTH_AVAILABLE = True
+LOCAL_DEV_AUTH_ENABLED = env_bool("LOCAL_DEV_AUTH_ENABLED", default=False)
+LOCAL_DEV_TELEGRAM_USER_ID = env_int("LOCAL_DEV_TELEGRAM_USER_ID", default=123_456_789)
+if LOCAL_DEV_TELEGRAM_USER_ID <= 0:
+    raise ImproperlyConfigured("LOCAL_DEV_TELEGRAM_USER_ID must be a positive integer.")
 
 
 def _development_tunnel_origin(raw_origin: str) -> str:

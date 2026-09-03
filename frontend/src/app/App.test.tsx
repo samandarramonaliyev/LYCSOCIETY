@@ -41,7 +41,7 @@ describe("protected route behavior", () => {
   it.each([
     ["AUTHENTICATING", "Authenticating"],
     ["SUSPENDED", "This account is suspended"],
-    ["TELEGRAM_UNAVAILABLE", "Open LYC Society inside Telegram"],
+    ["TELEGRAM_UNAVAILABLE", "Open in Telegram or enable local development authentication"],
     ["ERROR", "Authentication could not be completed"],
   ] as const)("renders %s safely", (state, message) => {
     renderProtected(state);

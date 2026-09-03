@@ -11,7 +11,6 @@ export function authStateForUser(user: CurrentUser): AuthState {
 
 export async function bootstrapAuth(): Promise<{ state: AuthState; user?: CurrentUser }> {
   const app = initializeTelegram();
-  if (!app) return { state: "TELEGRAM_UNAVAILABLE" };
 
   try {
     const existingUser = await api.me();
@@ -22,14 +21,38 @@ export async function bootstrapAuth(): Promise<{ state: AuthState; user?: Curren
     }
   }
 
+  const initData = app?.initData.trim();
+  if (initData) {
+    try {
+      await api.csrf();
+      const authenticated = await api.authenticate(initData);
+      return {
+        state: authStateForUser(authenticated.user),
+        user: authenticated.user,
+      };
+    } catch {
+      return { state: "ERROR" };
+    }
+  }
+
+  let localLoginSucceeded = false;
   try {
     await api.csrf();
-    const authenticated = await api.authenticate(app.initData);
+    await api.devLogin();
+    localLoginSucceeded = true;
+    const user = await api.me();
     return {
-      state: authStateForUser(authenticated.user),
-      user: authenticated.user,
+      state: authStateForUser(user),
+      user,
     };
-  } catch {
+  } catch (error) {
+    if (
+      !localLoginSucceeded
+      && error instanceof ApiClientError
+      && [403, 404].includes(error.status ?? 0)
+    ) {
+      return { state: "TELEGRAM_UNAVAILABLE" };
+    }
     return { state: "ERROR" };
   }
 }

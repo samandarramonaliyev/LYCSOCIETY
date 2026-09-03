@@ -56,6 +56,7 @@ The profile's lyceum is always derived from the active official student record. 
 |---|---|---|---|
 | `GET` | `/auth/csrf/` | None | Establish a CSRF cookie and return the token required before the session-creating Telegram login request |
 | `POST` | `/auth/telegram/` | CSRF bootstrap token | Validate raw Telegram Mini App `initData`, create/update the application user, rotate/create a secure session, and return safe account state |
+| `POST` | `/auth/dev-login/` | Development-only CSRF bootstrap token | Create/retrieve the configured local unverified account and establish the same session response shape; returns not-found when the explicit local-development flag is unavailable |
 | `POST` | `/auth/logout/` | Session | End the current session |
 | `GET` | `/auth/me/` | Session | Return the current account, onboarding state, safe Telegram display metadata, and own verified fields if any |
 | `GET` | `/verification/lyceums/` | Session | List only active lyceum IDs, codes, and names needed to choose an onboarding scope |
@@ -63,6 +64,14 @@ The profile's lyceum is always derived from the active official student record. 
 | `POST` | `/verification/claim/` | Session, active account | Submit an exact roster-match claim using `lyceum_id`, `first_name`, `last_name`, and `group` |
 
 Before `POST /auth/telegram/`, the same-origin Mini App calls `GET /auth/csrf/` and sends the returned token in `X-CSRFToken`; this protects the session-creating login from login CSRF. `POST /auth/telegram/` accepts only an `init_data` string. It does not accept a client-supplied Telegram ID or other identity fields. The backend parses the signed query string, verifies Telegram's HMAC, checks a configurable freshness window, and rejects cached replay hashes within that window. A valid request establishes a Django server-side session and returns a fresh CSRF token for subsequent cookie-authenticated writes; no JWT or browser-stored bearer token is issued.
+
+`POST /auth/dev-login/` is a local development aid, not a product authentication
+method. It is available only when `config.settings.development` has both Django debug
+mode and `LOCAL_DEV_AUTH_ENABLED=true`; production forces it off. It accepts no client
+identity fields, uses only the configured positive `LOCAL_DEV_TELEGRAM_USER_ID`, keeps
+CSRF protection, and returns the same safe response shape as Telegram login. A created
+account is ordinary, active, non-staff, non-superuser, and unverified; normal roster
+verification remains required for student features.
 
 `POST /verification/claim/` uses client input only to locate a candidate record. It normalizes whitespace and case, then claims only one active unclaimed `StudentRecord` matching the supplied active lyceum, first name, last name, and group. Zero matches, ambiguous matches, inactive records, and already-claimed records all return the same generic verification failure, so the route does not reveal roster state. An already verified user receives `409 ALREADY_VERIFIED`; claim reset/re-verification is an administrator-only operation. This lookup is not proof that the Telegram user owns the student identity; see `docs/SECURITY.md` and `docs/DECISIONS.md`.
 

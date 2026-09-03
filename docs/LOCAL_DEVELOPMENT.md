@@ -23,6 +23,8 @@ test values so tests never contact a real bot.
 | `DJANGO_DB_SSLMODE` | Default `prefer` | Use provider-appropriate TLS, preferably `verify-full` |
 | `DJANGO_DB_CONN_MAX_AGE` | Defaults to `60` seconds | Same setting if overridden |
 | `DJANGO_DB_TEST_NAME` | Optional explicit test database name | Optional only for controlled test runs |
+| `LOCAL_DEV_AUTH_ENABLED` | Explicit opt-in for the development-only browser login; defaults to `false` | Ignored and forced off |
+| `LOCAL_DEV_TELEGRAM_USER_ID` | Positive fake local Telegram-style ID used only by the development login; defaults to `123456789` | Not used |
 | `TELEGRAM_BOT_TOKEN` | Optional until real Mini App authentication/Bot API testing; missing token fails authentication closed | Always required, server-side only |
 | `TELEGRAM_WEBHOOK_ENABLED` | Defaults to `false` | Set `true` only when the HTTPS webhook is configured |
 | `TELEGRAM_WEBHOOK_SECRET` | Required only when webhook runtime is enabled | Required when webhook runtime is enabled; secret-manager supplied |
@@ -48,6 +50,20 @@ CREATE DATABASE lyc_society OWNER lyc_society;
 For Django's default test-database creation, grant the local role `CREATEDB`, or
 create a separate test database and set `DJANGO_DB_TEST_NAME`. PostgreSQL 18 is
 supported through Django's PostgreSQL backend; SQLite is intentionally not a fallback.
+
+## Local browser authentication
+
+Ordinary browsers do not receive Telegram Mini App `initData`. To exercise the normal
+session, onboarding, and student workflows locally, set `LOCAL_DEV_AUTH_ENABLED=true`
+and choose a positive `LOCAL_DEV_TELEGRAM_USER_ID` in the ignored root `.env`. The
+frontend uses `POST /api/v1/auth/dev-login/` only when Telegram `initData` is absent;
+real Telegram sessions always use the signed Telegram-login endpoint instead.
+
+This endpoint is available only from `config.settings.development` with Django debug
+mode and the explicit flag both enabled. It uses the configured server-side ID only,
+requires the normal CSRF bootstrap, creates an ordinary unverified non-staff account
+when needed, and never changes roster verification. Production settings force this
+mode off even if either environment variable is supplied.
 
 ## Quick Tunnel notes
 

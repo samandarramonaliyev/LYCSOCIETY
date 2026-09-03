@@ -33,7 +33,7 @@ export function Home() {
         </div>
         <p className="mt-1 text-sm text-[var(--muted)]">
           {state === "TELEGRAM_UNAVAILABLE"
-            ? "Open inside Telegram to authenticate and continue."
+            ? "Open in Telegram or enable local development authentication."
             : "Your academic home, thoughtfully assembled."}
         </p>
       </Card>

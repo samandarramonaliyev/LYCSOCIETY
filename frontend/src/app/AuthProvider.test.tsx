@@ -1,5 +1,5 @@
 import { render, screen } from "@testing-library/react";
-import { describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { AuthState } from "../types/api";
 import { currentUser } from "../test/fixtures";
@@ -21,6 +21,10 @@ function Probe() {
 }
 
 describe("AuthProvider states", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
   it("shows authenticating while bootstrap is pending and then verified", async () => {
     let resolve!: (value: { state: AuthState; user: ReturnType<typeof currentUser> }) => void;
     bootstrapAuth.mockReturnValueOnce(new Promise((next) => { resolve = next; }));
@@ -38,4 +42,13 @@ describe("AuthProvider states", () => {
       expect(await screen.findByText(state)).toBeInTheDocument();
     },
   );
+
+  it("does not retry a completed authentication bootstrap", async () => {
+    bootstrapAuth.mockResolvedValueOnce({ state: "UNVERIFIED", user: currentUser() });
+
+    render(<AuthProvider><Probe /></AuthProvider>);
+
+    expect(await screen.findByText("UNVERIFIED")).toBeInTheDocument();
+    expect(bootstrapAuth).toHaveBeenCalledTimes(1);
+  });
 });

@@ -337,3 +337,115 @@ class TelegramAuthenticationApiTests(APITestCase):
         self.assertEqual(authentication_response.status_code, 200)
         self.assertEqual(no_csrf_response.status_code, 403)
         self.assertEqual(csrf_response.status_code, 200)
+
+
+class LocalDevelopmentAuthenticationApiTests(APITestCase):
+    def setUp(self) -> None:
+        self.client = APIClient(enforce_csrf_checks=True)
+
+    def csrf_token(self) -> str:
+        response = self.client.get("/api/v1/auth/csrf/", secure=True)
+        self.assertEqual(response.status_code, 200)
+        return response.json()["csrf_token"]
+
+    def dev_login(self, data: dict[str, object] | None = None):
+        return self.client.post(
+            "/api/v1/auth/dev-login/",
+            {} if data is None else data,
+            format="json",
+            secure=True,
+            HTTP_REFERER="https://testserver/",
+            HTTP_X_CSRFTOKEN=self.csrf_token(),
+        )
+
+    @override_settings(
+        DEBUG=True,
+        LOCAL_DEV_AUTH_AVAILABLE=True,
+        LOCAL_DEV_AUTH_ENABLED=True,
+        LOCAL_DEV_TELEGRAM_USER_ID=612_345_678,
+    )
+    def test_dev_login_creates_an_ordinary_unverified_session_user(self) -> None:
+        response = self.dev_login()
+
+        self.assertEqual(response.status_code, 200)
+        self.assertTrue(response.json()["authenticated"])
+        self.assertTrue(response.json()["csrf_token"])
+        self.assertEqual(response.json()["user"]["verification_status"], "UNVERIFIED")
+        self.assertFalse(response.json()["user"]["can_access_student_features"])
+        self.assertIsNone(response.json()["user"]["verified_student"])
+        self.assertNotIn("telegram_user_id", response.content.decode())
+
+        user = User.objects.get(telegram_user_id=612_345_678)
+        self.assertFalse(user.is_staff)
+        self.assertFalse(user.is_superuser)
+        self.assertFalse(user.is_verified)
+        self.assertEqual(self.client.get("/api/v1/auth/me/", secure=True).status_code, 200)
+
+    @override_settings(
+        DEBUG=True,
+        LOCAL_DEV_AUTH_AVAILABLE=True,
+        LOCAL_DEV_AUTH_ENABLED=True,
+        LOCAL_DEV_TELEGRAM_USER_ID=612_345_679,
+    )
+    def test_dev_login_rejects_client_supplied_identity(self) -> None:
+        response = self.dev_login({"telegram_user_id": 999_999_999})
+
+        self.assertEqual(response.status_code, 400)
+        self.assertFalse(User.objects.filter(telegram_user_id=612_345_679).exists())
+        self.assertFalse(User.objects.filter(telegram_user_id=999_999_999).exists())
+
+    @override_settings(
+        DEBUG=True,
+        LOCAL_DEV_AUTH_AVAILABLE=True,
+        LOCAL_DEV_AUTH_ENABLED=True,
+        LOCAL_DEV_TELEGRAM_USER_ID=612_345_680,
+    )
+    def test_dev_login_retains_csrf_protection(self) -> None:
+        response = self.client.post(
+            "/api/v1/auth/dev-login/",
+            {},
+            format="json",
+            secure=True,
+            HTTP_REFERER="https://testserver/",
+        )
+
+        self.assertEqual(response.status_code, 403)
+        self.assertFalse(User.objects.filter(telegram_user_id=612_345_680).exists())
+
+    @override_settings(
+        DEBUG=True,
+        LOCAL_DEV_AUTH_AVAILABLE=True,
+        LOCAL_DEV_AUTH_ENABLED=False,
+    )
+    def test_dev_login_is_not_found_when_the_feature_flag_is_disabled(self) -> None:
+        self.assertEqual(self.dev_login().status_code, 404)
+
+    @override_settings(
+        DEBUG=False,
+        LOCAL_DEV_AUTH_AVAILABLE=True,
+        LOCAL_DEV_AUTH_ENABLED=True,
+        LOCAL_DEV_TELEGRAM_USER_ID=612_345_681,
+    )
+    def test_dev_login_is_not_found_when_debug_is_false_even_if_enabled(self) -> None:
+        self.assertEqual(self.dev_login().status_code, 404)
+        self.assertFalse(User.objects.filter(telegram_user_id=612_345_681).exists())
+
+    @override_settings(
+        DEBUG=True,
+        LOCAL_DEV_AUTH_AVAILABLE=True,
+        LOCAL_DEV_AUTH_ENABLED=True,
+        LOCAL_DEV_TELEGRAM_USER_ID=612_345_682,
+    )
+    def test_telegram_authentication_remains_the_signed_authentication_path(self) -> None:
+        response = self.client.post(
+            "/api/v1/auth/telegram/",
+            {"init_data": build_signed_init_data(telegram_user_id=612_345_683)},
+            format="json",
+            secure=True,
+            HTTP_REFERER="https://testserver/",
+            HTTP_X_CSRFTOKEN=self.csrf_token(),
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertTrue(User.objects.filter(telegram_user_id=612_345_683).exists())
+        self.assertFalse(User.objects.filter(telegram_user_id=612_345_682).exists())

@@ -19,7 +19,7 @@ export function RequireVerified({ children }: { children: ReactNode }) {
     return <State kind="error" title="This account is suspended" />;
   }
   if (state === "TELEGRAM_UNAVAILABLE") {
-    return <State kind="error" title="Open LYC Society inside Telegram" />;
+    return <State kind="error" title="Open in Telegram or enable local development authentication" />;
   }
   if (state === "ERROR") {
     return <State kind="error" title="Authentication could not be completed" />;

@@ -107,6 +107,11 @@ export const api = {
       method: "POST",
       body: JSON.stringify({ init_data }),
     }),
+  devLogin: () =>
+    request<{ authenticated: true; csrf_token: string; user: CurrentUser }>("/auth/dev-login/", {
+      method: "POST",
+      body: JSON.stringify({}),
+    }),
   me: () => request<CurrentUser>("/auth/me/"),
   logout: () => request<void>("/auth/logout/", { method: "POST" }),
   lyceums: () => request<{ results: { id: string; name: string; code: string }[] }>("/verification/lyceums/"),

@@ -113,7 +113,10 @@ Copy the generated `https://…trycloudflare.com` URL into
 `DEV_TUNNEL_ORIGIN` in root `.env`, restart Django, and set the BotFather Menu Button
 to that URL. Vite already permits only the local host and `*.trycloudflare.com`, and
 its `/api` proxy sends requests to Django at `127.0.0.1:8000`. Real Telegram
-`initData` validation remains enabled; a normal browser cannot authenticate as a Telegram user.
+`initData` validation remains enabled. For an ordinary local browser, explicitly opt
+in to the development-only local session in `.env` as documented in
+[`docs/LOCAL_DEVELOPMENT.md`](docs/LOCAL_DEVELOPMENT.md); it never acts as Telegram
+identity or student verification and is unavailable in production.
 
 The tunnel URL changes after restart, so update both `.env` and BotFather each time.
 The laptop and all three processes must remain running. This is development/demo only,
